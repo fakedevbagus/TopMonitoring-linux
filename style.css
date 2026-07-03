@@ -1,0 +1,9 @@
+window {
+  background-color: rgba(20, 20, 25, 0.92);
+}
+label {
+  color: #e0e0e0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 600;
+}

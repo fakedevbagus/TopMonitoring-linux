@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=TopMonitoring
+GenericName=System Monitor
+Comment=Native system monitor topbar
+Exec=topmonitoring
+Icon=topmonitoring
+Terminal=false
+Categories=System;Monitor;Utility;
+Keywords=monitor;cpu;gpu;sensor;ram;

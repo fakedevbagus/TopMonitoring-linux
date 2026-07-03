@@ -1,0 +1,32 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232833"/>
+      <stop offset="1" stop-color="#12141b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22e0ff"/>
+      <stop offset="1" stop-color="#3b82f6"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="116" fill="url(#bg)"/>
+  <rect x="16.5" y="16.5" width="479" height="479" rx="115.5" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="1"/>
+
+  <!-- topbar strip (identitas app) -->
+  <rect x="96" y="120" width="320" height="44" rx="22" fill="url(#accent)"/>
+  <rect x="120" y="136" width="70" height="12" rx="6" fill="#0d2230" fill-opacity="0.55"/>
+  <rect x="206" y="136" width="40" height="12" rx="6" fill="#0d2230" fill-opacity="0.55"/>
+  <circle cx="384" cy="142" r="9" fill="#0d2230" fill-opacity="0.55"/>
+
+  <!-- pulse / waveform (monitoring) -->
+  <path d="M96 306 L176 306 L202 258 L224 306 L252 306 L280 306 L300 176 L322 398 L344 306 L374 306 L400 262 L416 306"
+        fill="none" stroke="url(#accent)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- mini bar chart (metrik) -->
+  <g fill="#22e0ff">
+    <rect x="150" y="392" width="40" height="46" rx="10" fill-opacity="0.55"/>
+    <rect x="212" y="372" width="40" height="66" rx="10" fill-opacity="0.75"/>
+    <rect x="274" y="352" width="40" height="86" rx="10"/>
+    <rect x="336" y="384" width="40" height="54" rx="10" fill-opacity="0.65"/>
+  </g>
+</svg>
