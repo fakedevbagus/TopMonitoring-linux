@@ -1,9 +1,9 @@
 [package]
 name = "topmonitoring"
-version = "1.0.0"
+version = "1.1.1"
 edition = "2021"
 authors = ["satriabagusanjaya <satriabagusanjaya@gmail.com>"]
-description = "Native Linux system monitor topbar (dock) dengan sensor lengkap & kustomisasi penuh."
+description = "Native Linux system monitor topbar (dock) with deep hardware sensors and full live customization."
 license = "MIT"
 readme = "README.md"
 keywords = ["system-monitor", "gtk4", "topbar", "linux", "sensors"]
@@ -31,12 +31,14 @@ panic = "abort"
 maintainer = "satriabagusanjaya <satriabagusanjaya@gmail.com>"
 copyright = "2026, satriabagusanjaya"
 license-file = ["LICENSE", "0"]
-extended-description = "Topbar system monitor native untuk Linux dengan reserve-space, sensor hwmon lengkap, grafik, dan pengaturan live."
+extended-description = "TopMonitoring is a native Linux topbar system monitor that reserves real screen space (a true dock), exposes deep hardware sensors, and is fully customizable through its live-apply settings panel."
 depends = "libgtk-4-1, libgtk4-layer-shell0, libsensors5"
 section = "utils"
 priority = "optional"
 assets = [
     ["target/release/topmonitoring", "usr/bin/", "755"],
     ["topmonitoring.desktop", "usr/share/applications/", "644"],
+    ["assets/topmonitoring.svg", "usr/share/icons/hicolor/scalable/apps/topmonitoring.svg", "644"],
+    ["assets/topmonitoring-256.png", "usr/share/icons/hicolor/256x256/apps/topmonitoring.png", "644"],
     ["README.md", "usr/share/doc/topmonitoring/README.md", "644"],
 ]

@@ -1,9 +1,9 @@
-# Kontribusi
+# Contributing
 
-Terima kasih sudah tertarik! 
-1. Fork & buat branch: `git checkout -b fitur/nama`
-2. Pastlikan build lolos: `cargo build --release` & `cargo clippy`
+Thanks for your interest!
+1. Fork and create a branch: `git checkout -b feature/name`
+2. Make sure it builds: `cargo build --release` and `cargo clippy`
 3. Format: `cargo fmt`
-4. Commit dengan pesan jelas, lalu buka Pull Request.
+4. Commit with a clear message, then open a Pull Request.
 
-Laporkan bug lewat GitHub Issues (sertakan distro, DE, X11/Wayland, dan log).
+Report bugs via GitHub Issues (include your distro, desktop environment, X11/Wayland, and logs).
