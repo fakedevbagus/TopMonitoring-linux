@@ -1,41 +1,80 @@
-![CI](https://github.com/satriabagusanjaya/topmonitoring/actions/workflows/ci.yml/badge.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+# 📊 TopMonitoring
+
+![CI](https://github.com/satriabagusanjaya/topmonitoring-linux/actions/workflows/ci.yml/badge.svg)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Rust](https://img.shields.io/badge/rust-stable-orange.svg)
 ![Platform](https://img.shields.io/badge/platform-Linux-lightgrey.svg)
+![Release](https://img.shields.io/github/v/release/satriabagusanjaya/topmonitoring-linux?include_prereleases)
 
-# 📊 TopMonitoring
-Topbar **system monitor native** untuk Linux — nempel di tepi layar sebagai
-*dock* sejati (memaksa window fullscreen menyusut, bukan overlay), penuh metrik
-& sensor ala LibreHardwareMonitor, dan sepenuhnya bisa dikustomisasi.
+A native Linux **system-monitor topbar** that docks to a screen edge like a
+real panel — forcing fullscreen windows to shrink around it instead of
+overlaying them — with deep hardware sensors and full live customization.
 
-Dibangun dengan **Rust + GTK4**.
+Built with **Rust + GTK4**. Works on both **Wayland** (layer-shell) and
+**X11** (window struts).
 
-## ✨ Fitur
-- Dock sejati: Wayland (`wlr-layer-shell`) & X11 (`_NET_WM_STRUT_PARTIAL`)
-- Metrik lengkap: CPU, RAM, swap, suhu, fan, GPU (util/temp/VRAM/power/clock),
-  disk, disk I/O, network, uptime, load, baterai, dll
-- Jendela **Sensor Hardware**: seluruh sensor `hwmon` (voltase/arus/watt/fan/suhu)
-- Sparkline riwayat CPU/RAM/Network
-- Kustomisasi: tema gelap/terang, color picker live, CSS sendiri, font
-- Klik metrik → jalankan aplikasi, notifikasi kritis, modul custom (shell)
-- Pengaturan **live-apply** + Simpan, export/import config, autostart, multi-monitor
+![Screenshot](assets/screenshot.png)
 
-## 🚀 Instalasi
-1. Dependency sistem (Debian/Ubuntu)
+## ✨ Features
+
+- True dock behavior: Wayland `wlr-layer-shell` and X11 `_NET_WM_STRUT_PARTIAL`
+- Deep metrics: CPU, RAM, swap, temperature, fan, GPU (NVIDIA/AMD/Intel),
+  disk, disk I/O, network, uptime, load, battery, and more
+- **Hardware Sensors** window: every voltage/current/wattage/fan/temperature
+  channel from `hwmon`, grouped by chip
+- Colored, filled sparkline graphs that shift color near critical levels
+- Metrics **blink** when they cross your critical threshold
+- Left-click a metric to launch an app, middle-click for a detail popup
+- Custom shell-command modules, run safely off the UI thread
+- Live-apply Settings: every change previews instantly, one Save button,
+  closing without saving reverts automatically
+- Saved appearance presets, live color picker, custom CSS, font & size
+- Export/import config, one-click autostart, multi-monitor support
+
+## 🚀 Installation
+
+### Option A — Debian/Ubuntu `.deb` package
+Download the latest `.deb` from [Releases](../../releases) and:
+​
+sudo dpkg -i topmonitoring_*.deb
+
+### Option B — Build from source
+​
+Debian/Ubuntu
 sudo apt install -y build-essential pkg-config libgtk-4-dev \
 libgtk4-layer-shell-dev lm-sensors libsensors-dev
 sudo sensors-detect --auto
-2. Build & pasang
+git clone https://github.com/satriabagusanjaya/topmonitoring-linux.git
+cd topmonitoring-linux
 chmod +x install.sh && ./install.sh
-Lihat `Dokumentasi Teknis` untuk distro lain (Fedora/Arch).
+See the [full documentation](docs/) for Fedora/Arch instructions and troubleshooting.
 
-## ⚙️ Konfigurasi
-File otomatis: `~/.config/topmonitoring/config.toml`.
-Semua bisa diatur lewat GUI (klik ⚙ atau klik kanan pada bar).
+## ⚙️ Configuration
+
+Everything is configurable from the GUI: click the **⚙** icon on the bar, or
+**right-click** anywhere on it. Settings apply live; click **💾 Save** to
+persist. The config file lives at `~/.config/topmonitoring/config.toml`.
 
 ## 📦 Packaging
-​
-cargo install cargo-deb && cargo deb   # -> target/debian/*.deb
 
-## 📄 Lisensi
-MIT © 2026 satriabagusanjaya
+​
+cargo install cargo-deb
+cargo deb   # -> target/debian/topmonitoring_*.deb
+
+## 🤝 Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Please read our
+[Code of Conduct](CODE_OF_CONDUCT.md) before participating.
+
+## 🔒 Security
+
+See [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
+
+## 📄 License
+
+MIT © 2026 satriabagusanjaya — see [LICENSE](LICENSE).
+
+## 🪟 Related
+
+Looking for the Windows version? See
+[topmonitoring](https://github.com/satriabagusanjaya/topmonitoring).
