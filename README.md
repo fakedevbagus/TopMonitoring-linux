@@ -13,7 +13,7 @@ A native Linux **system-monitor topbar** built with Rust + GTK4. Unlike an overl
 
 ## Screenshot
 
-_Add a screenshot or short GIF of the bar here._
+<img width="1560" height="941" alt="Screenshot_2026-07-08_21-07-33" src="https://github.com/user-attachments/assets/aa721469-ed03-4615-b374-89b5c2e8d12d" />
 
 ## Features
 
