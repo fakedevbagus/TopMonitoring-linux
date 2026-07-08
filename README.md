@@ -1,115 +1,92 @@
 # TopMonitoring
 
-**A native Linux topbar system monitor** — a true reserve-space dock (not an overlay), full-width, resizable, with deep hardware sensors and full live customization.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-stable-orange?logo=rust)](https://www.rust-lang.org/)
+[![Platform](https://img.shields.io/badge/platform-Linux-informational?logo=linux)](https://github.com/fakedevbagus/TopMonitoring-linux)
+[![CI](https://github.com/fakedevbagus/TopMonitoring-linux/actions/workflows/ci.yml/badge.svg)](https://github.com/fakedevbagus/TopMonitoring-linux/actions/workflows/ci.yml)
+[![Latest Release](https://img.shields.io/github/v/release/fakedevbagus/TopMonitoring-linux?include_prereleases)](https://github.com/fakedevbagus/TopMonitoring-linux/releases)
+[![GitHub issues](https://img.shields.io/github/issues/fakedevbagus/TopMonitoring-linux)](https://github.com/fakedevbagus/TopMonitoring-linux/issues)
 
-Built with **Rust + GTK4**.
+A native Linux **system-monitor topbar** built with Rust + GTK4. Unlike an overlay widget, TopMonitoring **reserves real screen space** (via `wlr-layer-shell` on Wayland or `_NET_WM_STRUT_PARTIAL` on X11), so fullscreen apps automatically shrink around it instead of being covered.
 
----
-
-## Features
-
-- **True dock, not an overlay** — reserves real screen space via Wayland `wlr-layer-shell` (exclusive zone) or X11 `_NET_WM_STRUT_PARTIAL`, so fullscreen windows automatically shrink around it.
-- **Full metric set** — CPU (usage, per-core, model, frequency, package power, Vcore), RAM/swap, temperature & fan, GPU (NVIDIA via NVML, AMD/Intel via sysfs: utilization, VRAM, temp, power, clock), disk usage + I/O (including external/removable drives), network rate + lifetime totals, uptime, load average, process count, battery, host/kernel/OS info, Wi-Fi SSID/status, pending package updates, and MPRIS "now playing" media info.
-- **System controls, right from the bar** — Volume and Brightness sliders with live OS sync and a mute toggle, Bluetooth and VPN status, and optional Quick Action buttons (Lock screen, Screenshot, Shutdown-with-confirm).
-- **Mini Process Manager** — a lightweight popup listing the top CPU/RAM-consuming processes, sortable, refreshing live.
-- **History logging** — optionally logs CPU/RAM/temperature to a CSV file on a configurable interval, with a one-click shortcut to open the log folder.
-- **Update checker** — checks GitHub Releases for a newer version.
-- **Show/hide via keyboard shortcut** — the bar listens for `SIGUSR1` so you can bind a desktop keyboard shortcut to toggle it.
-- **Deep hardware sensors** — a dedicated Hardware Sensors window reads every `hwmon` channel (voltage, current, wattage, fan, temperature).
-- **Graphs** — colored, filled sparkline history for CPU / RAM / Network that shifts color near warning/critical thresholds.
-- **Full customization** — dark/light theme, live color picker, custom CSS, font & size, saved appearance presets, auto-dim on idle.
-- **Interaction** — left-click a metric to launch an app, middle-click for a detail popup, rich tooltips, blinking + desktop notifications on critical metrics.
-- **Custom modules** — run any shell command and show its output on the bar, executed off the UI thread.
-- **Live-apply settings** — every change applies immediately; a single Save button persists it. Export/import config, autostart installer, reset to defaults.
+> Full technical reference: [`docs/TECHNICAL.md`](docs/TECHNICAL.md)
 
 ## Screenshot
 
 _Add a screenshot or short GIF of the bar here._
 
+## Features
+
+- **Full-width topbar** — top or bottom position, multi-monitor support, resizable height
+- **Deep system metrics** — CPU, RAM, swap, temperature, fan, GPU (NVIDIA/AMD/Intel), disk (incl. external/removable drives), disk I/O, network, uptime, load, battery, Wi-Fi, pending package updates, media now-playing
+- **Hardware Sensors window** — every `hwmon` channel: voltage, current, wattage, fan, temperature
+- **Colored graphs** — filled sparkline history for CPU/RAM/Network
+- **System controls** — Volume & Brightness sliders with live OS sync, mute toggle, Bluetooth & VPN status
+- **Quick actions** — optional Lock / Screenshot / Shutdown-with-confirm buttons
+- **Mini Process Manager** — top CPU/RAM processes, sortable, live refresh
+- **History logging** — CSV log of CPU%/RAM%/temperature on a configurable interval
+- **Update checker** — compares your version against the latest GitHub release
+- **Show/hide shortcut** — responds to `SIGUSR1` for custom keybinding
+- **Custom modules** — run any shell command and show its output on the bar
+- **Fully customizable** — dark/light theme, live color picker, custom CSS, fonts, saved presets
+- **Live-apply settings** — change anything, see it instantly, save when ready
+- **Interaction** — left-click a metric to launch an app, middle-click for a detail popup, desktop notifications on critical thresholds
+
 ## Installation
 
-### Option 1 — `.deb` package (Debian/Ubuntu/Mint)
+### Option A: install the `.deb` package
 
 ```bash
 sudo dpkg -i topmonitoring_*.deb
 ```
 
-### Option 2 — Build from source
-
-**Install build dependencies:**
+### Option B: build from source
 
 ```bash
-# Debian/Ubuntu/Mint
-sudo apt install build-essential pkg-config libgtk-4-dev \
+# Debian/Ubuntu
+sudo apt install -y build-essential pkg-config libgtk-4-dev \
   libgtk4-layer-shell-dev lm-sensors libsensors-dev
-
 # Fedora
-sudo dnf install gcc pkgconf-pkg-config gtk4-devel gtk4-layer-shell-devel lm_sensors lm_sensors-devel
-
+sudo dnf install -y gcc pkgconf-pkg-config gtk4-devel gtk4-layer-shell-devel lm_sensors lm_sensors-devel
 # Arch
 sudo pacman -S --needed base-devel gtk4 gtk4-layer-shell lm_sensors
-```
 
-**Calibrate sensors (required for temperature readings):**
+sudo sensors-detect --auto && sensors   # calibrate hardware sensors
 
-```bash
-sudo sensors-detect --auto
-sensors   # should print CPU temperature, fan, voltage
-```
-
-**Build & install:**
-
-```bash
-git clone <repo-url> && cd topmonitoring
+git clone https://github.com/fakedevbagus/TopMonitoring-linux.git
+cd TopMonitoring-linux
 cargo build --release
 sudo install -Dm755 target/release/topmonitoring /usr/local/bin/topmonitoring
 ```
 
-On a compositor without Wayland layer-shell support (or if `libgtk4-layer-shell-dev` isn't available), build without it:
+**Building without Wayland support** (no `gtk4-layer-shell` available on your system): use X11 struts only.
 
 ```bash
 cargo build --release --no-default-features
 ```
 
-### Optional runtime tools (for full feature coverage)
+### Optional runtime tools
 
-TopMonitoring degrades gracefully (showing `n/a` or hiding the control) when a tool below isn't installed:
+Each control degrades gracefully (shows `n/a` or hides itself) if its tool isn't installed:
 
-| Feature | Tool needed |
+| Feature | Requires |
 |---|---|
-| Volume slider | `wpctl` (PipeWire, usually preinstalled) or `pactl` (PulseAudio) |
-| Brightness slider | `brightnessctl` (or `/sys/class/backlight` access) |
+| Volume slider | `wpctl` (PipeWire) or `pactl` (PulseAudio) |
+| Brightness slider | `brightnessctl` |
 | Bluetooth status | `bluetoothctl` (BlueZ) |
-| Wi-Fi SSID/status | `nmcli` (NetworkManager) |
+| Wi-Fi status | `nmcli` (NetworkManager) |
 | Media now-playing | `playerctl` |
 | Update checker | `curl` |
-| Screenshot quick action | `gnome-screenshot`, `xfce4-screenshooter`, `spectacle`, or `flameshot` |
-| Lock/Shutdown quick actions | `loginctl` / `systemctl` |
+| Screenshot quick action | `gnome-screenshot` / `xfce4-screenshooter` / `spectacle` / `flameshot` |
+| Lock / Shutdown quick actions | `loginctl` / `systemctl` |
 
 ## Usage
 
-- **Open Settings:** click the ⚙ icon on the bar, or right-click anywhere on it.
-- **Live-apply:** changes apply immediately; click **💾 Save** to persist them.
-- **Left-click a metric:** launches the app configured for it.
-- **Middle-click a metric:** opens a detail popup (per-core CPU, per-sensor temps, per-interface network, graph min/avg/max, etc).
-- **Volume/Brightness:** drag the sliders on the bar directly; click the speaker icon to toggle mute.
-- **Process Manager:** Settings → "Open Process Manager…".
-- **History logging:** Settings → enable "Log metrics history to CSV", set the interval, and use "Open history log folder" to find `history.csv`.
-- **Update checker:** Settings → "Check for Updates…".
-- **Show/hide shortcut:** bind a custom keyboard shortcut in your desktop environment's settings to run:
-  ```bash
-  pkill -SIGUSR1 topmonitoring
-  ```
-  Each press toggles the bar's visibility.
-- **Autostart:** Settings → "Enable autostart" (writes `~/.config/autostart/topmonitoring.desktop`).
-- **Portability:** Export/Import moves `config.toml` between machines.
-- **Quit:** Settings → "⏻ Quit TopMonitoring" (there's no titlebar close button by design, since the bar is a borderless dock).
+Right-click the bar (or click the ⚙ icon) to open **Settings**. Every change applies live; click **💾 Save** to persist it. See the full [Usage Guide](docs/TECHNICAL.md#9-usage-guide) for details on every feature.
 
 ## Configuration
 
-Config lives at `~/.config/topmonitoring/config.toml` (created automatically). If it becomes corrupted, TopMonitoring backs it up as `config.toml.bak` and falls back to defaults rather than failing to start.
-
-See the full field reference in the project's technical documentation.
+Config lives at `~/.config/topmonitoring/config.toml` and is created automatically on first run. Full field reference: [`docs/TECHNICAL.md`](docs/TECHNICAL.md#6-configuration-reference).
 
 ## Packaging
 
@@ -118,6 +95,12 @@ cargo install cargo-deb
 cargo deb   # -> target/debian/topmonitoring_*.deb
 ```
 
+See [`docs/TECHNICAL.md`](docs/TECHNICAL.md#10-packaging--distribution) for the full packaging and GitHub Release walkthrough, including how to build a `no-wayland` variant.
+
+## Changelog
+
+See [`CHANGELOG.md`](CHANGELOG.md).
+
 ## License
 
-MIT. Contributions and issues are welcome via the project repository.
+[MIT](LICENSE)
