@@ -64,6 +64,40 @@ pub struct Config {
     pub custom_modules: Vec<CustomModule>,
     #[serde(default = "default_presets")]
     pub presets: Vec<ThemePreset>,
+    /// Specific network interface to show for the "network" metric.
+    /// Empty string means aggregate all interfaces (previous behavior).
+    #[serde(default)]
+    pub net_iface: String,
+    /// Which GPU to show for gpu/gpu_power/gpu_clock/gpu_memclock/gpu_fan
+    /// on multi-GPU systems. 0 = first GPU (previous behavior).
+    #[serde(default)]
+    pub gpu_index: usize,
+    /// Show a quick-action "Lock" button on the bar.
+    #[serde(default)]
+    pub qa_lock: bool,
+    /// Show a quick-action "Shutdown" button on the bar (asks to confirm).
+    #[serde(default)]
+    pub qa_shutdown: bool,
+    /// Show a quick-action "Screenshot" button on the bar.
+    #[serde(default)]
+    pub qa_screenshot: bool,
+    /// Periodically append key metrics to a CSV log file for later analysis.
+    #[serde(default)]
+    pub history_enabled: bool,
+    /// How often (in seconds) to append a row to the history CSV log.
+    #[serde(default = "default_history_interval")]
+    pub history_interval_secs: u64,
+    /// Periodically check GitHub for a newer TopMonitoring release.
+    #[serde(default = "default_true")]
+    pub check_updates: bool,
+}
+
+fn default_history_interval() -> u64 {
+    60
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl Default for Config {
@@ -85,6 +119,14 @@ impl Default for Config {
             metrics: default_metrics(),
             custom_modules: Vec::new(),
             presets: default_presets(),
+            net_iface: String::new(),
+            gpu_index: 0,
+            qa_lock: false,
+            qa_shutdown: false,
+            qa_screenshot: false,
+            history_enabled: false,
+            history_interval_secs: default_history_interval(),
+            check_updates: true,
         }
     }
 }
@@ -126,6 +168,13 @@ pub fn default_metrics() -> Vec<MetricConf> {
         mc("host", "", false),
         mc("kernel", "KERN", false),
         mc("os", "OS", false),
+        mc("wifi", "WIFI", false),
+        mc("pkg_updates", "UPD", false),
+        mc("media", "", false),
+        mc("bluetooth", "BT", false),
+        mc("volume", "", false),
+        mc("brightness", "", false),
+        mc("vpn", "VPN", false),
     ]
 }
 
@@ -228,6 +277,15 @@ pub fn build_css(cfg: &Config, hue: Option<f64>) -> String {
     css.push_str(&format!(
         ".topbar button {{ background: transparent; color: {fg}; border: none; padding: 0 8px; }}\n"
     ));
+    // Volume / Brightness sliders: a slim accent-colored track with a
+    // small round handle, sized to sit comfortably inside the bar.
+    css.push_str(".topbar scale { min-height: 16px; padding: 0 6px; }\n");
+    css.push_str(".topbar scale trough { min-height: 4px; border-radius: 4px; background-color: rgba(255,255,255,0.18); }\n");
+    css.push_str(&format!(".topbar scale highlight {{ min-height: 4px; border-radius: 4px; background-color: {accent}; }}\n"));
+    css.push_str(&format!(".topbar scale slider {{ min-width: 10px; min-height: 10px; border-radius: 50%; background-color: {fg}; margin: -4px 0; }}\n"));
+    // The "dim" class fades out a label for an inactive state (e.g. VPN
+    // off), without fully hiding it like a warn/crit color change would.
+    css.push_str(".topbar .dim { opacity: 0.45; }\n");
 
     if !cfg.custom_css.trim().is_empty() {
         css.push('\n');
@@ -262,6 +320,8 @@ pub fn default_prefix(id: &str) -> &'static str {
         "load" => "LOAD",
         "kernel" => "KERN",
         "os" => "OS",
+        "wifi" => "WIFI",
+        "pkg_updates" => "UPD",
         _ => "",
     }
 }

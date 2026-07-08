@@ -31,7 +31,9 @@ enum SlotWidget {
     /// A draggable slider metric (Volume, Brightness). `suppress` is set
     /// while the periodic poll syncs the value from the OS, so that sync
     /// doesn't re-trigger the drag handler and fight the user's input.
-    Range { scale: Scale, suppress: Rc<Cell<bool>> },
+    /// `icon` is an optional companion button (the mute toggle, for
+    /// Volume) whose label is refreshed to reflect live state.
+    Range { scale: Scale, suppress: Rc<Cell<bool>>, icon: Option<Button> },
 }
 
 /// A single item shown on the bar, built from a `MetricConf`/`CustomModule`.
@@ -553,9 +555,11 @@ fn rebuild_bar_metrics(metrics_box: &GtkBox, active: &Active, cfg: &Config) {
         } else if m.id == "volume" {
             let (scale, suppress) = make_range();
             let mute_btn = Button::with_label("\u{1f50a}");
+            mute_btn.set_valign(gtk::Align::Center);
             mute_btn.set_tooltip_text(Some("Toggle mute"));
             mute_btn.connect_clicked(|_| toggle_mute());
             let row = GtkBox::new(Orientation::Horizontal, 2);
+            row.set_valign(gtk::Align::Center);
             row.append(&mute_btn);
             row.append(&scale);
             metrics_box.append(&row);
@@ -568,13 +572,15 @@ fn rebuild_bar_metrics(metrics_box: &GtkBox, active: &Active, cfg: &Config) {
             }
             act.push(Slot {
                 id: m.id.clone(), prefix: String::new(), source_cmd: String::new(),
-                warn: m.warn, crit: m.crit, widget: SlotWidget::Range { scale, suppress },
+                warn: m.warn, crit: m.crit, widget: SlotWidget::Range { scale, suppress, icon: Some(mute_btn) },
                 cmd_tx: None, cmd_rx: None, busy: None,
             });
         } else if m.id == "brightness" {
             let (scale, suppress) = make_range();
             let icon = Label::new(Some("\u{2600}"));
+            icon.set_valign(gtk::Align::Center);
             let row = GtkBox::new(Orientation::Horizontal, 2);
+            row.set_valign(gtk::Align::Center);
             row.append(&icon);
             row.append(&scale);
             metrics_box.append(&row);
@@ -587,7 +593,7 @@ fn rebuild_bar_metrics(metrics_box: &GtkBox, active: &Active, cfg: &Config) {
             }
             act.push(Slot {
                 id: m.id.clone(), prefix: String::new(), source_cmd: String::new(),
-                warn: m.warn, crit: m.crit, widget: SlotWidget::Range { scale, suppress },
+                warn: m.warn, crit: m.crit, widget: SlotWidget::Range { scale, suppress, icon: None },
                 cmd_tx: None, cmd_rx: None, busy: None,
             });
         } else {
@@ -714,11 +720,14 @@ fn update_slot(slot: &Slot, s: &System, cc: &Components, nn: &Networks, dd: &Dis
                 update_metric(&slot.id, &slot.prefix, label, s, cc, nn, dd, nvml, notify, slot.warn, slot.crit, net_iface, gpu_index);
             }
         }
-        SlotWidget::Range { scale, suppress } => {
-            let val = match slot.id.as_str() {
-                "volume" => read_volume().map(|(v, _muted)| v as f64),
-                "brightness" => read_brightness().map(|v| v as f64),
-                _ => None,
+        SlotWidget::Range { scale, suppress, icon } => {
+            let (val, muted) = match slot.id.as_str() {
+                "volume" => match read_volume() {
+                    Some((v, m)) => (Some(v as f64), m),
+                    None => (None, false),
+                },
+                "brightness" => (read_brightness().map(|v| v as f64), false),
+                _ => (None, false),
             };
             if let Some(v) = val {
                 // Avoid re-triggering the drag handler while we sync from
@@ -729,6 +738,9 @@ fn update_slot(slot: &Slot, s: &System, cc: &Components, nn: &Networks, dd: &Dis
                     scale.set_value(v);
                     suppress.set(false);
                 }
+            }
+            if let Some(btn) = icon {
+                btn.set_label(if muted { "\u{1f507}" } else { "\u{1f50a}" });
             }
         }
     }
@@ -1045,7 +1057,7 @@ fn update_metric(
                     set_prefixed(label, prefix, "on");
                     label.set_tooltip_text(Some("Bluetooth is on, no devices connected"));
                 } else {
-                    set_prefixed(label, prefix, &format!("{}\u{f294}", devices.len()));
+                    set_prefixed(label, prefix, &format!("{}", devices.len()));
                     label.set_tooltip_text(Some(&format!("Connected: {}", devices.join(", "))));
                 }
             }
@@ -1392,6 +1404,7 @@ fn make_range() -> (Scale, Rc<Cell<bool>>) {
     scale.set_size_request(80, -1);
     scale.set_draw_value(false);
     scale.set_hexpand(false);
+    scale.set_valign(gtk::Align::Center);
     (scale, Rc::new(Cell::new(false)))
 }
 
@@ -1980,510 +1993,4 @@ fn open_settings(
 
     let interval_spin = SpinButton::with_range(200.0, 5000.0, 100.0);
     interval_spin.set_value(cfg.borrow().interval_ms as f64);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        interval_spin.connect_value_changed(move |s| { cfg.borrow_mut().interval_ms = s.value() as u64; apply_all(); });
-    }
-    labeled_row(&vbox, "Refresh interval (ms)", &interval_spin);
-
-    let anim_sw = Switch::new();
-    anim_sw.set_active(cfg.borrow().animated_bg);
-    anim_sw.set_halign(gtk::Align::End);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        anim_sw.connect_active_notify(move |s| { cfg.borrow_mut().animated_bg = s.is_active(); apply_all(); });
-    }
-    labeled_row(&vbox, "Animated background (hue cycle)", &anim_sw);
-
-    let dim_sw = Switch::new();
-    dim_sw.set_active(cfg.borrow().auto_hide);
-    dim_sw.set_halign(gtk::Align::End);
-    dim_sw.set_tooltip_text(Some("Fades the bar to low opacity a moment after the pointer leaves it"));
-    {
-        let cfg = cfg.clone();
-        dim_sw.connect_active_notify(move |s| { cfg.borrow_mut().auto_hide = s.is_active(); });
-    }
-    labeled_row(&vbox, "Auto-dim when idle", &dim_sw);
-
-    let notif_sw = Switch::new();
-    notif_sw.set_active(cfg.borrow().notifications);
-    notif_sw.set_halign(gtk::Align::End);
-    {
-        let cfg = cfg.clone();
-        notif_sw.connect_active_notify(move |s| { cfg.borrow_mut().notifications = s.is_active(); });
-    }
-    labeled_row(&vbox, "Critical notifications", &notif_sw);
-
-    let qa_lock_sw = Switch::new();
-    qa_lock_sw.set_active(cfg.borrow().qa_lock);
-    qa_lock_sw.set_halign(gtk::Align::End);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        qa_lock_sw.connect_active_notify(move |s| { cfg.borrow_mut().qa_lock = s.is_active(); apply_all(); });
-    }
-    labeled_row(&vbox, "Quick action: Lock screen button", &qa_lock_sw);
-
-    let qa_screenshot_sw = Switch::new();
-    qa_screenshot_sw.set_active(cfg.borrow().qa_screenshot);
-    qa_screenshot_sw.set_halign(gtk::Align::End);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        qa_screenshot_sw.connect_active_notify(move |s| { cfg.borrow_mut().qa_screenshot = s.is_active(); apply_all(); });
-    }
-    labeled_row(&vbox, "Quick action: Screenshot button", &qa_screenshot_sw);
-
-    let qa_shutdown_sw = Switch::new();
-    qa_shutdown_sw.set_active(cfg.borrow().qa_shutdown);
-    qa_shutdown_sw.set_halign(gtk::Align::End);
-    qa_shutdown_sw.set_tooltip_text(Some("Adds a shutdown button to the bar; click twice within 4s to confirm"));
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        qa_shutdown_sw.connect_active_notify(move |s| { cfg.borrow_mut().qa_shutdown = s.is_active(); apply_all(); });
-    }
-    labeled_row(&vbox, "Quick action: Shutdown button", &qa_shutdown_sw);
-
-    let procman_btn = Button::with_label("Open Process Manager\u{2026}");
-    procman_btn.connect_clicked(|_| open_process_manager());
-    labeled_row(&vbox, "Mini task manager (top CPU/RAM processes)", &procman_btn);
-
-    let history_sw = Switch::new();
-    history_sw.set_active(cfg.borrow().history_enabled);
-    history_sw.set_halign(gtk::Align::End);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        history_sw.connect_active_notify(move |s| { cfg.borrow_mut().history_enabled = s.is_active(); apply_all(); });
-    }
-    labeled_row(&vbox, "Log metrics history to CSV", &history_sw);
-
-    let history_spin = SpinButton::with_range(5.0, 3600.0, 5.0);
-    history_spin.set_value(cfg.borrow().history_interval_secs as f64);
-    {
-        let cfg = cfg.clone();
-        history_spin.connect_value_changed(move |s| { cfg.borrow_mut().history_interval_secs = s.value() as u64; });
-    }
-    labeled_row(&vbox, "History log interval (seconds)", &history_spin);
-
-    let export_btn = Button::with_label("Open history log folder");
-    export_btn.connect_clicked(|_| {
-        if let Some(dir) = history_log_path().parent() {
-            let _ = std::process::Command::new("xdg-open").arg(dir).spawn();
-        }
-    });
-    labeled_row(&vbox, &format!("CSV log: {}", history_log_path().display()), &export_btn);
-
-    let update_row = GtkBox::new(Orientation::Horizontal, 8);
-    let check_updates_sw = Switch::new();
-    check_updates_sw.set_active(cfg.borrow().check_updates);
-    {
-        let cfg = cfg.clone();
-        check_updates_sw.connect_active_notify(move |s| { cfg.borrow_mut().check_updates = s.is_active(); });
-    }
-    let update_btn = Button::with_label("Check for Updates\u{2026}");
-    let update_result = Label::new(None);
-    {
-        let update_result = update_result.clone();
-        update_btn.connect_clicked(move |_| {
-            update_result.set_text("Checking\u{2026}");
-            let (tx, rx) = mpsc::channel::<String>();
-            std::thread::spawn(move || { let _ = tx.send(check_for_update()); });
-            let update_result2 = update_result.clone();
-            glib::timeout_add_local(Duration::from_millis(300), move || {
-                match rx.try_recv() {
-                    Ok(msg) => { update_result2.set_text(&msg); glib::ControlFlow::Break }
-                    Err(mpsc::TryRecvError::Empty) => glib::ControlFlow::Continue,
-                    Err(_) => { update_result2.set_text("Check failed"); glib::ControlFlow::Break }
-                }
-            });
-        });
-    }
-    update_row.append(&check_updates_sw);
-    update_row.append(&update_btn);
-    update_row.append(&update_result);
-    labeled_row(&vbox, "Auto-check for new releases on startup", &update_row);
-
-    let bg_entry = Entry::new();
-    bg_entry.set_text(&cfg.borrow().custom_bg);
-    bg_entry.set_placeholder_text(Some("empty = use theme default"));
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        bg_entry.connect_changed(move |e| { cfg.borrow_mut().custom_bg = e.text().to_string(); apply_all(); });
-    }
-    let color_btn = ColorDialogButton::new(Some(ColorDialog::new()));
-    if let Ok(rgba) = cfg.borrow().custom_bg.parse::<gtk::gdk::RGBA>() { color_btn.set_rgba(&rgba); }
-    {
-        let bg_entry = bg_entry.clone();
-        color_btn.connect_rgba_notify(move |b| { bg_entry.set_text(&b.rgba().to_string()); });
-    }
-    labeled_row(&vbox, "Background color (live)", &color_btn);
-    labeled_row(&vbox, "Background (CSS value)", &bg_entry);
-
-    vbox.append(&Label::new(Some("Custom CSS (target the .topbar selector):")));
-    let css_view = TextView::new();
-    css_view.buffer().set_text(&cfg.borrow().custom_css);
-    {
-        let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-        css_view.buffer().connect_changed(move |b| {
-            let (s, e) = b.bounds();
-            cfg.borrow_mut().custom_css = b.text(&s, &e, false).to_string();
-            apply_all();
-        });
-    }
-    vbox.append(&ScrolledWindow::builder().child(&css_view).min_content_height(70).build());
-
-    // ---- Saved appearance presets ----
-    vbox.append(&Label::new(Some("Saved appearance presets:")));
-    let presets_box = GtkBox::new(Orientation::Vertical, 4);
-    vbox.append(&presets_box);
-    let repop_presets: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::new(RefCell::new(None));
-    {
-        let (presets_box, cfg, repop_presets2, theme_dd, bg_entry, css_view, font_entry, size_spin) = (
-            presets_box.clone(), cfg.clone(), repop_presets.clone(),
-            theme_dd.clone(), bg_entry.clone(), css_view.clone(), font_entry.clone(), size_spin.clone(),
-        );
-        *repop_presets.borrow_mut() = Some(Box::new(move || {
-            while let Some(child) = presets_box.first_child() { presets_box.remove(&child); }
-            let len = cfg.borrow().presets.len();
-            for i in 0..len {
-                let p = cfg.borrow().presets[i].clone();
-                let row = GtkBox::new(Orientation::Horizontal, 6);
-                let name_lbl = Label::new(Some(&p.name));
-                name_lbl.set_hexpand(true);
-                name_lbl.set_xalign(0.0);
-                row.append(&name_lbl);
-
-                let apply_btn = Button::with_label("Apply");
-                {
-                    let (theme_dd, bg_entry, css_view, font_entry, size_spin, p) = (
-                        theme_dd.clone(), bg_entry.clone(), css_view.clone(), font_entry.clone(), size_spin.clone(), p.clone(),
-                    );
-                    // Setting these widgets fires their own change handlers,
-                    // which update the config and re-apply it live.
-                    apply_btn.connect_clicked(move |_| {
-                        theme_dd.set_selected(if p.theme == "light" { 1 } else { 0 });
-                        bg_entry.set_text(&p.custom_bg);
-                        css_view.buffer().set_text(&p.custom_css);
-                        font_entry.set_text(&p.font_family);
-                        size_spin.set_value(p.font_size as f64);
-                    });
-                }
-                let del_btn = Button::with_label("Delete");
-                {
-                    let (cfg, repop_presets2) = (cfg.clone(), repop_presets2.clone());
-                    del_btn.connect_clicked(move |_| {
-                        if i < cfg.borrow().presets.len() { cfg.borrow_mut().presets.remove(i); }
-                        if let Some(f) = repop_presets2.borrow().as_ref() { f(); }
-                    });
-                }
-                row.append(&apply_btn);
-                row.append(&del_btn);
-                presets_box.append(&row);
-            }
-        }));
-    }
-    if let Some(f) = repop_presets.borrow().as_ref() { f(); }
-
-    let preset_row = GtkBox::new(Orientation::Horizontal, 6);
-    let preset_name_entry = Entry::new();
-    preset_name_entry.set_placeholder_text(Some("Preset name"));
-    preset_name_entry.set_hexpand(true);
-    let save_preset = Button::with_label("Save current as preset");
-    preset_row.append(&preset_name_entry);
-    preset_row.append(&save_preset);
-    vbox.append(&preset_row);
-    {
-        let (cfg, repop_presets, preset_name_entry) = (cfg.clone(), repop_presets.clone(), preset_name_entry.clone());
-        save_preset.connect_clicked(move |_| {
-            let typed = preset_name_entry.text().to_string();
-            let count = cfg.borrow().presets.len();
-            let name = if typed.trim().is_empty() { format!("Preset {}", count + 1) } else { typed };
-            let c = cfg.borrow();
-            let preset = ThemePreset {
-                name, theme: c.theme.clone(), custom_bg: c.custom_bg.clone(),
-                custom_css: c.custom_css.clone(), font_family: c.font_family.clone(), font_size: c.font_size,
-            };
-            drop(c);
-            cfg.borrow_mut().presets.push(preset);
-            preset_name_entry.set_text("");
-            if let Some(f) = repop_presets.borrow().as_ref() { f(); }
-        });
-    }
-
-    // ---- Actions: export / import / autostart / sensors ----
-    let io_row = GtkBox::new(Orientation::Horizontal, 8);
-    let export = Button::with_label("Export\u{2026}");
-    let import = Button::with_label("Import\u{2026}");
-    let autostart = Button::with_label("Enable autostart");
-    let sensors_btn = Button::with_label("Hardware Sensors\u{2026}");
-    io_row.append(&export);
-    io_row.append(&import);
-    io_row.append(&autostart);
-    io_row.append(&sensors_btn);
-    vbox.append(&io_row);
-    autostart.connect_clicked(move |b| { b.set_label(if install_autostart() { "Autostart enabled \u{2713}" } else { "Failed" }); });
-    sensors_btn.connect_clicked(|_| open_sensors());
-    {
-        let (cfg, win2) = (cfg.clone(), win.clone());
-        export.connect_clicked(move |_| {
-            let dialog = FileDialog::builder().title("Export configuration").initial_name("topmonitoring-config.toml").build();
-            let cfg = cfg.clone();
-            dialog.save(Some(&win2), gtk::gio::Cancellable::NONE, move |res| {
-                if let Ok(file) = res {
-                    if let Some(path) = file.path() {
-                        if let Ok(s) = toml::to_string_pretty(&*cfg.borrow()) { let _ = std::fs::write(path, s); }
-                    }
-                }
-            });
-        });
-    }
-    {
-        let (cfg, apply_all, win2) = (cfg.clone(), apply_all.clone(), win.clone());
-        import.connect_clicked(move |_| {
-            let dialog = FileDialog::builder().title("Import configuration").build();
-            let (cfg, apply_all, win3) = (cfg.clone(), apply_all.clone(), win2.clone());
-            dialog.open(Some(&win2), gtk::gio::Cancellable::NONE, move |res| {
-                if let Ok(file) = res {
-                    if let Some(path) = file.path() {
-                        if let Ok(s) = std::fs::read_to_string(path) {
-                            if let Ok(newc) = toml::from_str::<Config>(&s) {
-                                *cfg.borrow_mut() = newc;
-                                cfg.borrow().save();
-                                apply_all();
-                                win3.close();
-                            }
-                        }
-                    }
-                }
-            });
-        });
-    }
-
-    // ---- Metrics: rename, click command, thresholds, enable, reorder ----
-    vbox.append(&Label::new(Some("Metrics \u{2014} the command column launches an app when left-clicked, and the two numbers are the warning/critical thresholds (0 = default):")));
-    let rows_box = GtkBox::new(Orientation::Vertical, 4);
-    vbox.append(&rows_box);
-    let repop: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::new(RefCell::new(None));
-    {
-        let (rows_box, cfg, apply_all, repop2) = (rows_box.clone(), cfg.clone(), apply_all.clone(), repop.clone());
-        *repop.borrow_mut() = Some(Box::new(move || {
-            while let Some(child) = rows_box.first_child() { rows_box.remove(&child); }
-            let len = cfg.borrow().metrics.len();
-            for i in 0..len {
-                let m = cfg.borrow().metrics[i].clone();
-                let row = GtkBox::new(Orientation::Horizontal, 6);
-                let id_lbl = Label::new(Some(&m.id));
-                id_lbl.set_width_chars(10);
-                row.append(&id_lbl);
-
-                let name = Entry::new();
-                name.set_text(&m.label);
-                name.set_placeholder_text(Some(default_prefix(&m.id)));
-                name.set_width_chars(6);
-                {
-                    let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-                    name.connect_changed(move |e| {
-                        if let Some(mm) = cfg.borrow_mut().metrics.get_mut(i) { mm.label = e.text().to_string(); }
-                        apply_all();
-                    });
-                }
-                row.append(&name);
-
-                let cmd = Entry::new();
-                cmd.set_text(&m.command);
-                cmd.set_width_chars(12);
-                cmd.set_placeholder_text(Some("left-click \u{2192} run"));
-                cmd.set_tooltip_text(Some("Shell command to run when this metric is left-clicked. Example: xfce4-taskmanager"));
-                {
-                    let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-                    cmd.connect_changed(move |e| {
-                        if let Some(mm) = cfg.borrow_mut().metrics.get_mut(i) { mm.command = e.text().to_string(); }
-                        apply_all();
-                    });
-                }
-                row.append(&cmd);
-
-                let warn_spin = SpinButton::with_range(0.0, 5000.0, 1.0);
-                warn_spin.set_digits(1);
-                warn_spin.set_width_chars(4);
-                warn_spin.set_value(m.warn);
-                warn_spin.set_tooltip_text(Some("Warning threshold (0 = built-in default)"));
-                {
-                    let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-                    warn_spin.connect_value_changed(move |s| {
-                        if let Some(mm) = cfg.borrow_mut().metrics.get_mut(i) { mm.warn = s.value(); }
-                        apply_all();
-                    });
-                }
-                row.append(&warn_spin);
-
-                let crit_spin = SpinButton::with_range(0.0, 5000.0, 1.0);
-                crit_spin.set_digits(1);
-                crit_spin.set_width_chars(4);
-                crit_spin.set_value(m.crit);
-                crit_spin.set_tooltip_text(Some("Critical threshold (0 = built-in default)"));
-                {
-                    let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-                    crit_spin.connect_value_changed(move |s| {
-                        if let Some(mm) = cfg.borrow_mut().metrics.get_mut(i) { mm.crit = s.value(); }
-                        apply_all();
-                    });
-                }
-                row.append(&crit_spin);
-
-                let sw = Switch::new();
-                sw.set_active(m.enabled);
-                {
-                    let (cfg, apply_all) = (cfg.clone(), apply_all.clone());
-                    sw.connect_active_notify(move |s| {
-                        if let Some(mm) = cfg.borrow_mut().metrics.get_mut(i) { mm.enabled = s.is_active(); }
-                        apply_all();
-                    });
-                }
-                row.append(&sw);
-
-                let up = Button::with_label("\u{2191}");
-                {
-                    let (cfg, apply_all, repop2) = (cfg.clone(), apply_all.clone(), repop2.clone());
-                    up.connect_clicked(move |_| {
-                        if i > 0 { cfg.borrow_mut().metrics.swap(i, i - 1); }
-                        if let Some(f) = repop2.borrow().as_ref() { f(); }
-                        apply_all();
-                    });
-                }
-                let down = Button::with_label("\u{2193}");
-                {
-                    let (cfg, apply_all, repop2) = (cfg.clone(), apply_all.clone(), repop2.clone());
-                    down.connect_clicked(move |_| {
-                        let len = cfg.borrow().metrics.len();
-                        if i + 1 < len { cfg.borrow_mut().metrics.swap(i, i + 1); }
-                        if let Some(f) = repop2.borrow().as_ref() { f(); }
-                        apply_all();
-                    });
-                }
-                row.append(&up);
-                row.append(&down);
-                rows_box.append(&row);
-            }
-        }));
-    }
-    if let Some(f) = repop.borrow().as_ref() { f(); }
-
-    // ---- Custom modules ----
-    vbox.append(&Label::new(Some("Custom modules (name \u{b7} label \u{b7} shell command):")));
-    let cm_box = GtkBox::new(Orientation::Vertical, 4);
-    vbox.append(&cm_box);
-    let repop_cm: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::new(RefCell::new(None));
-    {
-        let (cm_box, cfg, apply_all, repop_cm2) = (cm_box.clone(), cfg.clone(), apply_all.clone(), repop_cm.clone());
-        *repop_cm.borrow_mut() = Some(Box::new(move || {
-            while let Some(child) = cm_box.first_child() { cm_box.remove(&child); }
-            let len = cfg.borrow().custom_modules.len();
-            for i in 0..len {
-                let m = cfg.borrow().custom_modules[i].clone();
-                let row = GtkBox::new(Orientation::Horizontal, 6);
-
-                let name = Entry::new();
-                name.set_text(&m.name);
-                name.set_placeholder_text(Some("name"));
-                name.set_width_chars(6);
-                { let (cfg, apply_all) = (cfg.clone(), apply_all.clone()); name.connect_changed(move |e| { if let Some(mm) = cfg.borrow_mut().custom_modules.get_mut(i) { mm.name = e.text().to_string(); } apply_all(); }); }
-                let lbl = Entry::new();
-                lbl.set_text(&m.label);
-                lbl.set_placeholder_text(Some("label"));
-                lbl.set_width_chars(5);
-                { let (cfg, apply_all) = (cfg.clone(), apply_all.clone()); lbl.connect_changed(move |e| { if let Some(mm) = cfg.borrow_mut().custom_modules.get_mut(i) { mm.label = e.text().to_string(); } apply_all(); }); }
-                let cmd = Entry::new();
-                cmd.set_text(&m.command);
-                cmd.set_placeholder_text(Some("command"));
-                cmd.set_hexpand(true);
-                { let (cfg, apply_all) = (cfg.clone(), apply_all.clone()); cmd.connect_changed(move |e| { if let Some(mm) = cfg.borrow_mut().custom_modules.get_mut(i) { mm.command = e.text().to_string(); } apply_all(); }); }
-                let sw = Switch::new();
-                sw.set_active(m.enabled);
-                { let (cfg, apply_all) = (cfg.clone(), apply_all.clone()); sw.connect_active_notify(move |s| { if let Some(mm) = cfg.borrow_mut().custom_modules.get_mut(i) { mm.enabled = s.is_active(); } apply_all(); }); }
-                let del = Button::with_label("\u{2715}");
-                { let (cfg, apply_all, repop_cm2) = (cfg.clone(), apply_all.clone(), repop_cm2.clone()); del.connect_clicked(move |_| { if i < cfg.borrow().custom_modules.len() { cfg.borrow_mut().custom_modules.remove(i); } if let Some(f) = repop_cm2.borrow().as_ref() { f(); } apply_all(); }); }
-                row.append(&name); row.append(&lbl); row.append(&cmd); row.append(&sw); row.append(&del);
-                cm_box.append(&row);
-            }
-        }));
-    }
-    if let Some(f) = repop_cm.borrow().as_ref() { f(); }
-    let cm_btn_row = GtkBox::new(Orientation::Horizontal, 8);
-    let add_cm = Button::with_label("+ Add module");
-    let add_hwmon = Button::with_label("+ Add sensor from hwmon\u{2026}");
-    cm_btn_row.append(&add_cm);
-    cm_btn_row.append(&add_hwmon);
-    vbox.append(&cm_btn_row);
-    {
-        let (cfg, repop_cm, apply_all) = (cfg.clone(), repop_cm.clone(), apply_all.clone());
-        add_cm.connect_clicked(move |_| {
-            cfg.borrow_mut().custom_modules.push(CustomModule { name: "module".into(), label: "".into(), command: "echo hi".into(), enabled: true });
-            if let Some(f) = repop_cm.borrow().as_ref() { f(); }
-            apply_all();
-        });
-    }
-    {
-        let (cfg, repop_cm, apply_all) = (cfg.clone(), repop_cm.clone(), apply_all.clone());
-        add_hwmon.connect_clicked(move |_| {
-            open_hwmon_picker(cfg.clone(), apply_all.clone(), repop_cm.clone());
-        });
-    }
-
-    // ---- Save / Reset / Quit ----
-    let btn_row = GtkBox::new(Orientation::Horizontal, 8);
-    let save = Button::with_label("\u{1f4be} Save");
-    let reset = Button::with_label("Reset to defaults");
-    let quit = Button::with_label("\u{23fb} Quit TopMonitoring");
-    btn_row.append(&save);
-    btn_row.append(&reset);
-    btn_row.append(&quit);
-    vbox.append(&btn_row);
-    {
-        let (cfg, original) = (cfg.clone(), original.clone());
-        save.connect_clicked(move |b| {
-            cfg.borrow().save();
-            *original.borrow_mut() = cfg.borrow().clone();
-            b.set_label("\u{1f4be} Saved \u{2713}");
-        });
-    }
-    {
-        let (cfg, original, apply_all, win2) = (cfg.clone(), original.clone(), apply_all.clone(), win.clone());
-        reset.connect_clicked(move |_| {
-            *cfg.borrow_mut() = Config::default();
-            cfg.borrow().save();
-            *original.borrow_mut() = cfg.borrow().clone();
-            apply_all();
-            win2.close();
-        });
-    }
-    {
-        let window = window.clone();
-        quit.connect_clicked(move |_| {
-            if let Some(app) = window.application() { app.quit(); }
-        });
-    }
-
-    // Closing without saving restores the last saved configuration, and
-    // frees the singleton slot so Settings can be reopened afterward.
-    {
-        let (cfg, original, apply_all, settings_slot) = (cfg.clone(), original.clone(), apply_all.clone(), settings_slot.clone());
-        win.connect_close_request(move |_| {
-            *cfg.borrow_mut() = original.borrow().clone();
-            apply_all();
-            *settings_slot.borrow_mut() = None;
-            glib::Propagation::Proceed
-        });
-    }
-
-    win.set_child(Some(&ScrolledWindow::builder().hscrollbar_policy(gtk::PolicyType::Never).propagate_natural_width(true).child(&vbox).build()));
-    win.present();
-}
-
-fn labeled_row(parent: &GtkBox, text: &str, w: &impl IsA<gtk::Widget>) {
-    let row = GtkBox::new(Orientation::Horizontal, 8);
-    let l = Label::new(Some(text));
-    l.set_hexpand(true);
-    l.set_xalign(0.0);
-    row.append(&l);
-    row.append(w);
-    parent.append(&row);
-}
+   
