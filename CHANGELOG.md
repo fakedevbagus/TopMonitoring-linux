@@ -3,6 +3,22 @@
 All notable changes to TopMonitoring are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+- Settings no longer emits recurring `Gtk-CRITICAL` "minimum height ... for
+  width of 1048576 ... Expect overlapping widgets" warnings every refresh
+  tick. Both Settings stacks (page stack and module catalog stack) are now
+  non-homogeneous; the old behavior measured every page at two widths each
+  frame and mixed incompatible minimums. Verified 0 warnings across all five
+  pages (previously 26–69 per 14s window).
+
+### Added
+- Diagnostic environment hooks for headless verification:
+  `TOPMONITORING_AUTO_SETTINGS=1` auto-opens the Settings window after
+  startup and `TOPMONITORING_SETTINGS_PAGE=<name>` forces the initial page
+  (see `docs/TESTING.md` §12). Both are scheduled for removal before 3.0.0 GA.
+
 ## [3.0.0-alpha.5] - 2026-08-16
 
 ### Added

@@ -832,6 +832,17 @@ fn build_bar(app: &Application) {
         let open = open.clone();
         settings_btn.connect_clicked(move |_| open());
     }
+    // Diagnostic hook: setting TOPMONITORING_AUTO_SETTINGS=1 auto-opens the
+    // Settings window ~2s after startup so Gtk-CRITICAL size warnings can be
+    // captured without manual clicking. Remove before 3.0.0 GA.
+    if std::env::var_os("TOPMONITORING_AUTO_SETTINGS").is_some() {
+        let open = open.clone();
+        glib::timeout_add_local(std::time::Duration::from_millis(2000), move || {
+            open();
+            glib::ControlFlow::Break
+        });
+    }
+
     {
         let gesture = GestureClick::new();
         gesture.set_button(3);
@@ -3496,6 +3507,12 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
     let stack = Stack::new();
     stack.set_hexpand(true);
     stack.set_vexpand(true);
+    // Pages live inside ScrolledWindows, so they do not need a shared size.
+    // A homogeneous stack measures every page at two different widths each
+    // frame, which triggers recurring "minimum height ... Expect overlapping
+    // widgets" Gtk-CRITICAL warnings from the 1s refresh timer.
+    stack.set_hhomogeneous(false);
+    stack.set_vhomogeneous(false);
     stack.set_transition_type(gtk::StackTransitionType::Crossfade);
     let sidebar = StackSidebar::new();
     sidebar.set_stack(&stack);
@@ -4451,6 +4468,13 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
         });
     }
 
+    // Diagnostic hook: TOPMONITORING_SETTINGS_PAGE=<name> forces the initial
+    // Settings page so per-page size warnings can be bisected automatically.
+    // Remove before 3.0.0 GA.
+    if let Some(page) = std::env::var_os("TOPMONITORING_SETTINGS_PAGE") {
+        stack.set_visible_child_name(&page.to_string_lossy());
+    }
+
     window.present();
 }
 
@@ -4646,6 +4670,11 @@ fn build_module_catalog_page(
     catalog_empty.set_margin_start(18);
     catalog_empty.set_margin_end(18);
     let catalog_state = Stack::new();
+    // Non-homogeneous: the list and empty placeholders are both scrolled/filled
+    // and a homogeneous stack re-measures both each frame, feeding the
+    // GtkPaned "minimum height" Gtk-CRITICAL warnings in this page.
+    catalog_state.set_hhomogeneous(false);
+    catalog_state.set_vhomogeneous(false);
     catalog_state.add_named(&catalog_scroll, Some("list"));
     catalog_state.add_named(&catalog_empty, Some("empty"));
     catalog_state.set_visible_child_name("list");

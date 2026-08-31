@@ -293,3 +293,29 @@ open ten minutes and repeatedly reopen it to check CPU, memory, and stale UI.
 
 Do **not** create a `.deb` for `3.0.0-alpha.5`. Preserve logs and return any
 rustfmt-modified source before Phase 4 begins.
+
+## 12. Settings minimum-height warning fix gate — 2026-09-01
+
+The manual alpha.5 session recorded 542 recurring Gtk-CRITICAL warnings:
+`GtkBox reports a minimum height of 363, but minimum height for width of
+1048576 is 395` plus `GtkPaned ... 140 ... 172` (see
+`test-artifacts/no-wayland/manual-20260816-234513.log`).
+
+Root cause: both Settings stacks (`GtkStack` for the five pages and
+`GtkStack` for the module catalog list/empty states) were homogeneous. A
+homogeneous stack measures every child at two different widths each frame,
+so the reported minimum height mixed results from different pages and the
+1-second refresh timer re-emitted the warning continuously. The widgets are
+scrolled/filled, so a shared size is not required.
+
+Fix: set `hhomogeneous(false)`/`vhomogeneous(false)` on both stacks and
+document two diagnostic hooks: `TOPMONITORING_AUTO_SETTINGS=1` auto-opens
+Settings ~2s after launch, and `TOPMONITORING_SETTINGS_PAGE=<name>` forces
+the initial page for per-page bisection.
+
+Verification (2026-09-01, release build, isolated config, 14s per page):
+`overview=0 bars=0 appearance=0 modules=0 tools=0` Gtk-CRITICAL warnings,
+compared with 26–69 per page before the fix. The full terminal gate re-passed
+after the change: `cargo fmt --check`, 44/44 tests on `--all-features` and
+`--no-default-features`, zero Clippy warnings on both feature matrices,
+release builds, and `scripts/check_source.py`.
