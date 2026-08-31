@@ -1,6 +1,7 @@
 mod backend;
 mod command;
 mod config;
+mod effects;
 mod layout;
 mod model;
 mod runtime;
@@ -546,7 +547,16 @@ fn build_bar(app: &Application) {
     settings_btn.set_margin_end(6);
     end_shell.append(&settings_btn);
     root.set_end_widget(Some(&end_shell));
-    window.set_child(Some(&root));
+    // The bar content lives in an overlay so the non-interactive effect layer
+    // can paint above every module without intercepting pointer input.
+    let overlay = gtk::Overlay::new();
+    overlay.set_child(Some(&root));
+    let effect_engine = effects::EffectEngine::attach(
+        &overlay,
+        effects::EffectParams::from_config(&cfg.borrow()),
+        cfg.borrow().reduce_motion,
+    );
+    window.set_child(Some(&overlay));
 
     let active: Active = Rc::new(RefCell::new(Vec::new()));
     let adaptive_entries: AdaptiveEntries = Rc::new(RefCell::new(Vec::new()));
@@ -564,21 +574,19 @@ fn build_bar(app: &Application) {
 
     // GTK only reconciles immutable snapshots. Native hardware/filesystem I/O
     // is owned by CoreCollector; subprocess providers use RuntimeServices.
-    let tick = Rc::new(Cell::new(0_u32));
     let poll_source: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
     let history_accum_ms = Rc::new(Cell::new(0_u64));
     let last_core_snapshot: Rc<RefCell<Option<CoreSnapshot>>> = Rc::new(RefCell::new(None));
     let last_external_snapshot: Rc<RefCell<Option<ExternalSnapshot>>> = Rc::new(RefCell::new(None));
 
     let respawn: Rc<dyn Fn(u64)> = {
-        let (active, cfg, provider, tick, poll_source, core) = (
+        let (active, cfg, poll_source, core) = (
             active.clone(),
             cfg.clone(),
-            provider.clone(),
-            tick.clone(),
             poll_source.clone(),
             core.clone(),
         );
+        let effect_engine = effect_engine.clone();
         let history_accum_ms = history_accum_ms.clone();
         let last_core_snapshot = last_core_snapshot.clone();
         let last_external_snapshot = last_external_snapshot.clone();
@@ -595,13 +603,8 @@ fn build_bar(app: &Application) {
                     config.gpu_index as u32,
                 ));
             }
-            let (active, cfg, provider, tick, core) = (
-                active.clone(),
-                cfg.clone(),
-                provider.clone(),
-                tick.clone(),
-                core.clone(),
-            );
+            let (active, cfg, core) = (active.clone(), cfg.clone(), core.clone());
+            let effect_engine = effect_engine.clone();
             let history_accum_ms = history_accum_ms.clone();
             let last_core_snapshot = last_core_snapshot.clone();
             let last_external_snapshot = last_external_snapshot.clone();
@@ -670,14 +673,13 @@ fn build_bar(app: &Application) {
                 } else {
                     history_accum_ms.set(0);
                 }
-                if config.animated_bg && !config.reduce_motion {
-                    let phase = tick.get();
-                    tick.set(phase.wrapping_add(1));
-                    provider.load_from_string(&build_css(
-                        &config,
-                        Some((phase as f64 * step_ms as f64 / 1_000.0 * 18.0) % 360.0),
-                    ));
-                }
+                // Keep the effect engine in sync with the live config. The
+                // engine itself never rebuilds CSS; it only redraws its own
+                // overlay layer through the frame clock.
+                effect_engine.update_params(
+                    effects::EffectParams::from_config(&config),
+                    config.reduce_motion,
+                );
                 drop(config);
                 *last_core_snapshot.borrow_mut() = Some(core_snapshot);
                 *last_external_snapshot.borrow_mut() = Some(external);

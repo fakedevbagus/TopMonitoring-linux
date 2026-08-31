@@ -18,6 +18,21 @@ All notable changes to TopMonitoring are documented here. The format follows
   `TOPMONITORING_AUTO_SETTINGS=1` auto-opens the Settings window after
   startup and `TOPMONITORING_SETTINGS_PAGE=<name>` forces the initial page
   (see `docs/TESTING.md` §12). Both are scheduled for removal before 3.0.0 GA.
+- Frame-clock effect engine (`src/effects.rs`, Step 0.2): five effect kinds
+  (`orbit-glow`, `ember-orbit`, `aurora-sweep`, `critical-beacon`,
+  `static-fallback`) drawn on a non-interactive GTK overlay layer above the
+  bar. All parameters are clamped, the phase advance respects the fps cap
+  (default 30), `reduce_motion` forces the static fallback, and a discharging
+  battery auto-disables animation. Disabled by default; new flat config keys
+  `effects_enabled/effects_kind/effects_fps_cap/effects_intensity/
+  effects_trail/effects_thickness/effects_speed` with serde defaults keep v2
+  configs parsing. Eight new unit tests (52 total).
+
+### Changed
+- The legacy per-second `animated_bg` hue rotation was removed
+  (`load_from_string` inside the polling loop is now rejected by
+  `scripts/check_source.py`). Effect visuals render exclusively through the
+  new engine; configs with `animated_bg = true` simply keep the static theme.
 
 ## [3.0.0-alpha.5] - 2026-08-16
 

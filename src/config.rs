@@ -34,6 +34,24 @@ fn default_history_max_mb() -> u32 {
 fn default_schema_version() -> u32 {
     CONFIG_SCHEMA_VERSION
 }
+fn default_effects_kind() -> String {
+    "off".into()
+}
+fn default_effects_fps_cap() -> u32 {
+    30
+}
+fn default_effects_intensity() -> f64 {
+    0.6
+}
+fn default_effects_trail() -> f64 {
+    0.5
+}
+fn default_effects_thickness() -> f64 {
+    3.0
+}
+fn default_effects_speed() -> f64 {
+    1.0
+}
 fn default_module_gap() -> i32 {
     4
 }
@@ -255,6 +273,22 @@ pub struct Config {
     pub blink_critical: bool,
     #[serde(default = "default_true")]
     pub adaptive_compact: bool,
+    // Visual effect engine (Step 0.2). Flat fields with serde defaults keep
+    // older v2 configs parsing; unknown values are clamped at validation.
+    #[serde(default)]
+    pub effects_enabled: bool,
+    #[serde(default = "default_effects_kind")]
+    pub effects_kind: String,
+    #[serde(default = "default_effects_fps_cap")]
+    pub effects_fps_cap: u32,
+    #[serde(default = "default_effects_intensity")]
+    pub effects_intensity: f64,
+    #[serde(default = "default_effects_trail")]
+    pub effects_trail: f64,
+    #[serde(default = "default_effects_thickness")]
+    pub effects_thickness: f64,
+    #[serde(default = "default_effects_speed")]
+    pub effects_speed: f64,
 }
 
 impl Default for Config {
@@ -297,6 +331,13 @@ impl Default for Config {
             reduce_motion: false,
             blink_critical: true,
             adaptive_compact: true,
+            effects_enabled: false,
+            effects_kind: default_effects_kind(),
+            effects_fps_cap: default_effects_fps_cap(),
+            effects_intensity: default_effects_intensity(),
+            effects_trail: default_effects_trail(),
+            effects_thickness: default_effects_thickness(),
+            effects_speed: default_effects_speed(),
         }
     }
 }
@@ -474,6 +515,22 @@ impl Config {
         self.module_radius = self.module_radius.clamp(0, 18);
         self.bar_opacity = self.bar_opacity.clamp(0.35, 1.0);
         self.gpu_index = self.gpu_index.min(31);
+        self.effects_fps_cap = self.effects_fps_cap.clamp(1, 60);
+        self.effects_intensity = self.effects_intensity.clamp(0.0, 2.0);
+        self.effects_trail = self.effects_trail.clamp(0.0, 1.0);
+        self.effects_thickness = self.effects_thickness.clamp(1.0, 12.0);
+        self.effects_speed = self.effects_speed.clamp(0.1, 4.0);
+        if !matches!(
+            self.effects_kind.as_str(),
+            "off"
+                | "orbit-glow"
+                | "ember-orbit"
+                | "aurora-sweep"
+                | "critical-beacon"
+                | "static-fallback"
+        ) {
+            self.effects_kind = "off".into();
+        }
         if !matches!(self.position.as_str(), "top" | "bottom") {
             self.position = "top".into();
         }
@@ -782,6 +839,32 @@ metrics = [{ id = "cpu", label = "C", enabled = true }]
         assert_eq!(config.interval_ms, 250);
         assert_eq!(config.position, "top");
         assert!(config.metrics.iter().any(|metric| metric.id == "network"));
+    }
+
+    #[test]
+    fn effect_fields_clamp_and_reject_unknown_kinds() {
+        let raw = r#"
+            effects_enabled = true
+            effects_kind = "aurora-sweep"
+            effects_fps_cap = 500
+            effects_intensity = 42.0
+            effects_trail = -1.0
+            effects_thickness = 999.0
+            effects_speed = 100.0
+        "#;
+        let mut config: Config = toml::from_str(raw).expect("flat effect fields parse");
+        config.migrate_and_validate();
+        assert_eq!(config.effects_fps_cap, 60);
+        assert_eq!(config.effects_intensity, 2.0);
+        assert_eq!(config.effects_trail, 0.0);
+        assert_eq!(config.effects_thickness, 12.0);
+        assert_eq!(config.effects_speed, 4.0);
+        assert_eq!(config.effects_kind, "aurora-sweep");
+
+        let mut bogus: Config = toml::from_str("effects_kind = \"rainbow\"").expect("parses");
+        bogus.migrate_and_validate();
+        assert_eq!(bogus.effects_kind, "off");
+        assert!(!bogus.effects_enabled);
     }
 
     #[test]

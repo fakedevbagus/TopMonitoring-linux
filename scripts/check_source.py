@@ -49,6 +49,10 @@ else:
         "std::fs::",
         '"/sys/',
         '"/proc',
+        # The effect engine redraws its own overlay layer; rebuilding a CSS
+        # provider inside the polling loop is the removed animated_bg path
+        # and must not come back (V3-008 / Step 0.3).
+        "load_from_string",
     ]:
         if token in poll_source:
             problems.append(f"provider I/O leaked into GTK polling callback: {token}")

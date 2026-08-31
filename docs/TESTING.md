@@ -319,3 +319,21 @@ compared with 26–69 per page before the fix. The full terminal gate re-passed
 after the change: `cargo fmt --check`, 44/44 tests on `--all-features` and
 `--no-default-features`, zero Clippy warnings on both feature matrices,
 release builds, and `scripts/check_source.py`.
+
+## 13. Effect engine gate — Step 0.2/0.3 — 2026-09-01
+
+`src/effects.rs` implements the frame-clock effect engine with pure state
+(`EffectKind`, `EffectParams`, `EffectState`) and a thin GTK executor
+(non-interactive `DrawingArea` overlay via `GtkOverlay`). The bar now
+composes `GtkOverlay > root` so the effect layer paints above modules
+without touching CSS providers. The legacy `animated_bg` hue-recompile path
+was removed and `scripts/check_source.py` now rejects `load_from_string`
+inside the polling loop.
+
+Verification (2026-09-01): 52/52 unit tests on both feature matrices, zero
+Clippy warnings with `-D warnings` on both matrices, release build ok,
+source hygiene ok. Headless smoke: 12 s runs with isolated config produced
+0 Gtk-CRITICAL and 0 panics with effects disabled and with
+`effects_kind = "aurora-sweep"` enabled. Battery policy (`discharging` via
+`/sys/class/power_supply`) disables animation; `reduce_motion` forces
+`static-fallback`; unknown `effects_kind` values validate back to `off`.
