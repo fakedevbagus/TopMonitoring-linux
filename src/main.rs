@@ -3901,15 +3901,61 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
         });
     }
     labeled_row(&theme_section, "Bar opacity", &opacity);
+    let weight_labels = [
+        "100 Thin",
+        "200 ExtraLight",
+        "300 Light",
+        "400 Regular",
+        "500 Medium",
+        "600 SemiBold",
+        "700 Bold",
+        "800 ExtraBold",
+        "900 Black",
+    ];
+    let font_weight = DropDown::from_strings(&weight_labels);
+    // Borrow ends before the setter runs (same re-entrancy rule as colors).
+    let weight_current = cfg.borrow().font_weight.clamp(100, 900);
+    font_weight.set_selected(((weight_current / 100) - 1) as u32);
+    {
+        let cfg = cfg.clone();
+        let style = actions.style.clone();
+        font_weight.connect_selected_notify(move |widget| {
+            cfg.borrow_mut().font_weight = 100 * (widget.selected() as i32 + 1);
+            style();
+        });
+    }
+    labeled_row(&theme_section, "Label font weight", &font_weight);
+    let border_strength = SpinButton::with_range(0.0, 0.6, 0.02);
+    border_strength.set_digits(2);
+    let border_current = cfg.borrow().border_strength;
+    border_strength.set_value(border_current);
+    {
+        let cfg = cfg.clone();
+        let style = actions.style.clone();
+        border_strength.connect_value_changed(move |widget| {
+            cfg.borrow_mut().border_strength = widget.value();
+            style();
+        });
+    }
+    labeled_row(&theme_section, "Module border strength", &border_strength);
     appearance.append(&theme_section);
 
     let colors = settings_section("Colors", "CSS color values are validated before use.");
+    // Read current values as separate statements: a temporary `cfg.borrow()`
+    // inside an array literal stays alive until the whole statement ends, and
+    // `picker.set_rgba()` below fires the notify handler synchronously, whose
+    // `borrow_mut()` would then collide (RefCell already borrowed).
+    let background_value = cfg.borrow().custom_bg.clone();
+    let accent_value = cfg.borrow().accent_color.clone();
+    let surface_value = cfg.borrow().surface_color.clone();
+    let warning_value = cfg.borrow().warning_color.clone();
+    let critical_value = cfg.borrow().critical_color.clone();
     for (title, value, field) in [
-        ("Background", cfg.borrow().custom_bg.clone(), 0_u8),
-        ("Accent", cfg.borrow().accent_color.clone(), 1_u8),
-        ("Module surface", cfg.borrow().surface_color.clone(), 2_u8),
-        ("Warning", cfg.borrow().warning_color.clone(), 3_u8),
-        ("Critical", cfg.borrow().critical_color.clone(), 4_u8),
+        ("Background", background_value, 0_u8),
+        ("Accent", accent_value, 1_u8),
+        ("Module surface", surface_value, 2_u8),
+        ("Warning", warning_value, 3_u8),
+        ("Critical", critical_value, 4_u8),
     ] {
         let entry = Entry::new();
         entry.set_text(&value);
@@ -3918,6 +3964,48 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
         } else {
             "#RRGGBB or rgba(…)"
         }));
+        // Native color picker next to the text entry (Step 0.4). The entry
+        // stays as the advanced fallback for rgba() strings with alpha.
+        let picker = gtk::ColorDialogButton::new(Some(gtk::ColorDialog::new()));
+        {
+            let cfg = cfg.clone();
+            let style = actions.style.clone();
+            let entry = entry.clone();
+            picker.connect_rgba_notify(move |button| {
+                let rgba = button.rgba();
+                let token = match rgba.alpha() {
+                    alpha if (alpha - 1.0).abs() < f32::EPSILON => format!(
+                        "rgb({:.0}, {:.0}, {:.0})",
+                        rgba.red() * 255.0,
+                        rgba.green() * 255.0,
+                        rgba.blue() * 255.0,
+                    ),
+                    alpha => format!(
+                        "rgba({:.0}, {:.0}, {:.0}, {alpha:.2})",
+                        rgba.red() * 255.0,
+                        rgba.green() * 255.0,
+                        rgba.blue() * 255.0,
+                    ),
+                };
+                match field {
+                    0 => cfg.borrow_mut().custom_bg = token.clone(),
+                    1 => cfg.borrow_mut().accent_color = token.clone(),
+                    2 => cfg.borrow_mut().surface_color = token.clone(),
+                    3 => cfg.borrow_mut().warning_color = token.clone(),
+                    _ => cfg.borrow_mut().critical_color = token.clone(),
+                }
+                // Reuse the validated entry path so both stay in sync.
+                entry.set_text(&token);
+                style();
+            });
+        }
+        if let Ok(rgba) = gtk::gdk::RGBA::parse(&value) {
+            picker.set_rgba(&rgba);
+        }
+        let row = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+        entry.set_hexpand(true);
+        row.append(&entry);
+        row.append(&picker);
         let cfg = cfg.clone();
         let style = actions.style.clone();
         entry.connect_changed(move |widget| {
@@ -3931,7 +4019,7 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
             }
             style();
         });
-        labeled_row(&colors, title, &entry);
+        labeled_row(&colors, title, &row);
     }
     appearance.append(&colors);
 
@@ -3966,6 +4054,8 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
             config.module_gap = preset.module_gap;
             config.module_padding = preset.module_padding;
             config.module_radius = preset.module_radius;
+            config.font_weight = preset.font_weight;
+            config.border_strength = preset.border_strength;
             drop(config);
             (actions.style)();
             (actions.layout)();
@@ -4000,6 +4090,8 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
                 module_gap: config.module_gap,
                 module_padding: config.module_padding,
                 module_radius: config.module_radius,
+                font_weight: config.font_weight,
+                border_strength: config.border_strength,
             };
             drop(config);
             cfg.borrow_mut().presets.push(preset);
@@ -4012,6 +4104,105 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
     preset_section.append(&preset_name);
     preset_section.append(&save_preset);
     appearance.append(&preset_section);
+
+    // ----- Live preview (Step 0.4) -----
+    // Rendered by the same global provider that styles the bar, so every
+    // token above is reflected immediately without opening the bar window.
+    let preview_section = settings_section(
+        "Live preview",
+        "Rendered with the same CSS provider as the live bar.",
+    );
+    let preview = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    preview.add_css_class("topbar");
+    let preview_zone = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    preview_zone.add_css_class("zone");
+    for (text, extra) in [("CPU 12%", "accent"), ("MEM 41%", "crit")] {
+        let module = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+        module.add_css_class("module");
+        let label = Label::new(Some(text));
+        label.add_css_class(extra);
+        module.append(&label);
+        preview_zone.append(&module);
+    }
+    preview.append(&preview_zone);
+    preview_section.append(&preview);
+    appearance.append(&preview_section);
+
+    // ----- Undo & safe defaults (Step 0.4) -----
+    // A snapshot of every visual token taken when Settings opened. Advanced
+    // custom CSS is deliberately untouched by both actions.
+    let visual_snapshot = cfg.borrow().clone();
+    let undo_section = settings_section(
+        "Undo & defaults",
+        "Undo reverts the visual tokens below to the values from when Settings opened. Custom CSS is never modified.",
+    );
+    let undo_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let undo_button = Button::with_label("Undo since opening Settings");
+    {
+        let cfg = cfg.clone();
+        let actions = actions.clone();
+        let snapshot = visual_snapshot.clone();
+        let slot = Rc::clone(&context.settings_slot);
+        undo_button.connect_clicked(move |_| {
+            {
+                let mut config = cfg.borrow_mut();
+                config.theme = snapshot.theme.clone();
+                config.custom_bg = snapshot.custom_bg.clone();
+                config.font_family = snapshot.font_family.clone();
+                config.font_size = snapshot.font_size;
+                config.bar_opacity = snapshot.bar_opacity;
+                config.accent_color = snapshot.accent_color.clone();
+                config.warning_color = snapshot.warning_color.clone();
+                config.critical_color = snapshot.critical_color.clone();
+                config.surface_color = snapshot.surface_color.clone();
+                config.module_gap = snapshot.module_gap;
+                config.module_padding = snapshot.module_padding;
+                config.module_radius = snapshot.module_radius;
+                config.font_weight = snapshot.font_weight;
+                config.border_strength = snapshot.border_strength;
+            }
+            (actions.style)();
+            (actions.layout)();
+            if let Some(window) = slot.borrow().as_ref() {
+                window.close();
+            }
+        });
+    }
+    undo_row.append(&undo_button);
+    let restore_button = Button::with_label("Restore safe visual defaults");
+    {
+        let cfg = cfg.clone();
+        let actions = actions.clone();
+        let slot = Rc::clone(&context.settings_slot);
+        restore_button.connect_clicked(move |_| {
+            {
+                let defaults = Config::default();
+                let mut config = cfg.borrow_mut();
+                config.theme = defaults.theme.clone();
+                config.custom_bg = defaults.custom_bg.clone();
+                config.font_family = defaults.font_family.clone();
+                config.font_size = defaults.font_size;
+                config.bar_opacity = defaults.bar_opacity;
+                config.accent_color = defaults.accent_color.clone();
+                config.warning_color = defaults.warning_color.clone();
+                config.critical_color = defaults.critical_color.clone();
+                config.surface_color = defaults.surface_color.clone();
+                config.module_gap = defaults.module_gap;
+                config.module_padding = defaults.module_padding;
+                config.module_radius = defaults.module_radius;
+                config.font_weight = defaults.font_weight;
+                config.border_strength = defaults.border_strength;
+            }
+            (actions.style)();
+            (actions.layout)();
+            if let Some(window) = slot.borrow().as_ref() {
+                window.close();
+            }
+        });
+    }
+    undo_row.append(&restore_button);
+    undo_section.append(&undo_row);
+    appearance.append(&undo_section);
 
     let css_section = settings_section(
         "Advanced CSS",
@@ -4595,7 +4786,7 @@ fn settings_page_search_target(query: &str) -> Option<&'static str> {
         ),
         (
             "appearance",
-            "appearance theme dark light font opacity color background accent surface warning critical preset css style",
+            "appearance theme dark light font weight opacity color picker background accent surface warning critical border radius preset undo restore default css style",
         ),
         (
             "tools",

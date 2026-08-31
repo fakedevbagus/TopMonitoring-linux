@@ -5,6 +5,25 @@ All notable changes to TopMonitoring are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Theme Studio controls on the Settings Appearance page: label font weight
+  (100–900), module border strength (0.0–0.6), and native GTK color pickers
+  next to every CSS color entry (Background, Accent, Module surface, Warning,
+  Critical). Entries remain the advanced fallback for rgba() strings with
+  alpha; picker and entry stay in sync.
+- Live bar preview: style changes re-render the real bar CSS immediately
+  before saving, plus a compact-density simulation toggle and an explicit
+  Reset (discard) / Save pair.
+- New config tokens `font_weight` and `border_strength` (serde defaults, both
+  clamped at validation) included in theme presets.
+
+### Fixed
+- A `RefCell already borrowed` panic when opening Settings: the five color
+  values were read as temporaries inside one array-literal statement, so the
+  shared borrow guards stayed alive while `picker.set_rgba()` synchronously
+  fired the notify handler's `borrow_mut()`. Values are now read into locals
+  first; the same hardening was applied to the weight/border controls.
+
 ### Fixed
 - Settings no longer emits recurring `Gtk-CRITICAL` "minimum height ... for
   width of 1048576 ... Expect overlapping widgets" warnings every refresh

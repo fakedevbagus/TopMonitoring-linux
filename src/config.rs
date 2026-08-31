@@ -52,6 +52,12 @@ fn default_effects_thickness() -> f64 {
 fn default_effects_speed() -> f64 {
     1.0
 }
+fn default_font_weight() -> i32 {
+    600
+}
+fn default_border_strength() -> f64 {
+    0.10
+}
 fn default_module_gap() -> i32 {
     4
 }
@@ -195,6 +201,10 @@ pub struct ThemePreset {
     pub module_gap: i32,
     pub module_padding: i32,
     pub module_radius: i32,
+    #[serde(default = "default_font_weight")]
+    pub font_weight: i32,
+    #[serde(default = "default_border_strength")]
+    pub border_strength: f64,
 }
 
 impl Default for ThemePreset {
@@ -211,6 +221,8 @@ impl Default for ThemePreset {
             module_gap: default_module_gap(),
             module_padding: default_module_padding(),
             module_radius: default_module_radius(),
+            font_weight: default_font_weight(),
+            border_strength: default_border_strength(),
         }
     }
 }
@@ -289,6 +301,12 @@ pub struct Config {
     pub effects_thickness: f64,
     #[serde(default = "default_effects_speed")]
     pub effects_speed: f64,
+    // Theme Studio tokens (Step 0.4): label font weight and module border
+    // strength. Serde defaults keep older configs parsing unchanged.
+    #[serde(default = "default_font_weight")]
+    pub font_weight: i32,
+    #[serde(default = "default_border_strength")]
+    pub border_strength: f64,
 }
 
 impl Default for Config {
@@ -338,6 +356,8 @@ impl Default for Config {
             effects_trail: default_effects_trail(),
             effects_thickness: default_effects_thickness(),
             effects_speed: default_effects_speed(),
+            font_weight: default_font_weight(),
+            border_strength: default_border_strength(),
         }
     }
 }
@@ -520,6 +540,8 @@ impl Config {
         self.effects_trail = self.effects_trail.clamp(0.0, 1.0);
         self.effects_thickness = self.effects_thickness.clamp(1.0, 12.0);
         self.effects_speed = self.effects_speed.clamp(0.1, 4.0);
+        self.font_weight = self.font_weight.clamp(100, 900);
+        self.border_strength = self.border_strength.clamp(0.0, 0.6);
         if !matches!(
             self.effects_kind.as_str(),
             "off"
@@ -692,6 +714,9 @@ pub fn build_css(config: &Config, hue: Option<f64>) -> String {
     let compact_padding = (padding - 2).max(1);
     let tiny_padding = (padding - 4).max(0);
     let radius = config.module_radius;
+    let font_weight = config.font_weight.clamp(100, 900);
+    let border_alpha = config.border_strength.clamp(0.0, 0.6);
+    let border = format!("rgba(255,255,255,{border_alpha:.2})");
     let transition = if config.reduce_motion {
         "none"
     } else {
@@ -702,13 +727,13 @@ pub fn build_css(config: &Config, hue: Option<f64>) -> String {
         ".topbar {{ background-color: {background}; }}\n\
          .topbar.dimmed {{ opacity: 0.20; }}\n\
          .topbar .zone {{ border-spacing: {gap}px; }}\n\
-         .topbar .module {{ background-color: {surface}; border: 1px solid rgba(255,255,255,0.10); border-radius: {radius}px; padding: 0 {padding}px; transition: {transition}; }}\n\
+         .topbar .module {{ background-color: {surface}; border: 1px solid {border}; border-radius: {radius}px; padding: 0 {padding}px; transition: {transition}; }}\n\
          .topbar .module.layout-compact {{ padding-left: {compact_padding}px; padding-right: {compact_padding}px; }}\n\
          .topbar .module.layout-tiny {{ padding-left: {tiny_padding}px; padding-right: {tiny_padding}px; }}\n\
          .topbar .overflow-button {{ min-width: 48px; font-weight: 700; }}\n\
          .overflow-row {{ min-width: 280px; padding: 4px 2px; border-spacing: 12px; }}\n\
          .overflow-empty {{ min-width: 280px; padding: 8px 2px; opacity: 0.72; }}\n\
-         .topbar label {{ color: {foreground}; font-family: {font}; font-size: {font_size}px; font-weight: 600; font-variant-numeric: tabular-nums; }}\n\
+         .topbar label {{ color: {foreground}; font-family: {font}; font-size: {font_size}px; font-weight: {font_weight}; font-variant-numeric: tabular-nums; }}\n\
          .topbar .secondary {{ color: {secondary}; }}\n\
          .topbar .accent, .topbar .accent label {{ color: {accent}; }}\n\
          .topbar .warn, .topbar .warn label {{ color: {warning}; }}\n\
@@ -865,6 +890,26 @@ metrics = [{ id = "cpu", label = "C", enabled = true }]
         bogus.migrate_and_validate();
         assert_eq!(bogus.effects_kind, "off");
         assert!(!bogus.effects_enabled);
+    }
+
+    #[test]
+    fn theme_tokens_clamp() {
+        let mut config = Config {
+            font_weight: 5_000,
+            border_strength: 12.0,
+            ..Config::default()
+        };
+        config.migrate_and_validate();
+        assert_eq!(config.font_weight, 900);
+        assert_eq!(config.border_strength, 0.6);
+        let mut config = Config {
+            font_weight: 0,
+            border_strength: -1.0,
+            ..Config::default()
+        };
+        config.migrate_and_validate();
+        assert_eq!(config.font_weight, 100);
+        assert_eq!(config.border_strength, 0.0);
     }
 
     #[test]

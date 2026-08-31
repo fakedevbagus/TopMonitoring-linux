@@ -337,3 +337,24 @@ source hygiene ok. Headless smoke: 12 s runs with isolated config produced
 `effects_kind = "aurora-sweep"` enabled. Battery policy (`discharging` via
 `/sys/class/power_supply`) disables animation; `reduce_motion` forces
 `static-fallback`; unknown `effects_kind` values validate back to `off`.
+
+## 14. Theme Studio gate — 2026-09-01 (Step 0.4)
+
+Step 0.4 added Theme Studio controls to the Settings Appearance page: label
+font weight, module border strength, and native color pickers beside every
+color entry, all feeding the live bar preview before Save.
+
+A real defect surfaced on first headless run: opening Settings panicked with
+`RefCell already borrowed` (src/main.rs, color picker notify handler). Root
+cause: the five `(title, value, field)` rows were built in one array-literal
+statement, keeping every temporary `cfg.borrow()` guard alive until the
+statement ended, while `picker.set_rgba(&rgba)` at widget construction fired
+the already-connected notify handler synchronously and its `cfg.borrow_mut()`
+collided. Fix: read the five values into locals first; the weight dropdown
+and border spinbutton got the same read-then-set hardening.
+
+Verification (release build, isolated config): appearance/overview/tools
+smoke runs each 14 s => 0 Gtk-CRITICAL, 0 panic; full terminal gate re-passed
+(fmt, 53/53 tests, clippy both feature matrices, release builds, source
+hygiene, doc gate); effects smoke still clean. Logs preserved in
+`test-artifacts/no-wayland/theme-studio-20260901/`.

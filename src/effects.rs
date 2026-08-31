@@ -615,9 +615,11 @@ mod tests {
 
     #[test]
     fn policy_forces_static_or_off() {
-        let mut params = EffectParams::default();
-        params.enabled = true;
-        params.kind = EffectKind::OrbitGlow;
+        let mut params = EffectParams {
+            enabled: true,
+            kind: EffectKind::OrbitGlow,
+            ..EffectParams::default()
+        };
         assert_eq!(params.effective_kind(false, false), EffectKind::OrbitGlow);
         assert_eq!(
             params.effective_kind(true, false),
