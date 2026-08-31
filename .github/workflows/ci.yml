@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [wayland, x11-only]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libgtk4-layer-shell-dev libsensors-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - name: Test
+        run: |
+          if [[ "${{ matrix.mode }}" == "x11-only" ]]; then
+            cargo test --locked --no-default-features
+          else
+            cargo test --locked --all-features
+          fi
+      - name: Clippy
+        run: |
+          if [[ "${{ matrix.mode }}" == "x11-only" ]]; then
+            cargo clippy --locked --all-targets --no-default-features -- -D warnings
+          else
+            cargo clippy --locked --all-targets --all-features -- -D warnings
+          fi
+      - name: Release build
+        run: |
+          if [[ "${{ matrix.mode }}" == "x11-only" ]]; then
+            cargo build --release --locked --no-default-features
+          else
+            cargo build --release --locked --all-features
+          fi
+
+  repository-hygiene:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts and repository hygiene
+        run: |
+          bash -n install.sh uninstall.sh scripts/test-no-wayland.sh scripts/package-no-wayland.sh
+          python3 scripts/check_source.py
+          python3 scripts/check_release_docs.py

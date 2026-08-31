@@ -1,0 +1,59 @@
+[package]
+name = "topmonitoring"
+version = "3.0.0-alpha.5"
+edition = "2021"
+authors = ["satriabagusanjaya <satriabagusanjaya@gmail.com>"]
+description = "Fast, customizable native Linux system-monitor topbar for Wayland and X11."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/fakedevbagus/TopMonitoring-linux"
+homepage = "https://github.com/fakedevbagus/TopMonitoring-linux"
+keywords = ["system-monitor", "gtk4", "topbar", "linux", "sensors"]
+categories = ["gui"]
+
+[dependencies]
+gtk = { version = "0.9", package = "gtk4", features = ["v4_12"] }
+gtk4-layer-shell = { version = "0.4", optional = true }
+gdk4-x11 = "0.9"
+sysinfo = "0.33"
+nvml-wrapper = "0.10"
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+x11rb = "0.13"
+dirs = "5"
+
+[features]
+default = ["wayland"]
+wayland = ["dep:gtk4-layer-shell"]
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[package.metadata.deb]
+name = "topmonitoring"
+maintainer = "satriabagusanjaya <satriabagusanjaya@gmail.com>"
+copyright = "2026, satriabagusanjaya"
+license-file = ["LICENSE", "0"]
+depends = "libgtk-4-1 (>= 4.12), libgtk4-layer-shell0, libsensors5"
+conflicts = "topmonitoring-no-wayland"
+replaces = "topmonitoring-no-wayland"
+recommends = "libnotify-bin, playerctl, brightnessctl, bluez, network-manager, pipewire-audio | pulseaudio-utils, curl, flatpak"
+extended-description = "TopMonitoring 3 is a native GTK4 system-monitor topbar with isolated providers, immutable snapshots, adaptive overflow, customizable modules, safe commands, and Wayland/X11 docking."
+section = "utils"
+priority = "optional"
+assets = [
+    ["target/release/topmonitoring", "usr/bin/", "755"],
+    ["topmonitoring.desktop", "usr/share/applications/io.github.fakedevbagus.TopMonitoring.desktop", "644"],
+    ["data/io.github.fakedevbagus.TopMonitoring.metainfo.xml", "usr/share/metainfo/io.github.fakedevbagus.TopMonitoring.metainfo.xml", "644"],
+    ["assets/topmonitoring.svg", "usr/share/icons/hicolor/scalable/apps/io.github.fakedevbagus.TopMonitoring.svg", "644"],
+    ["assets/topmonitoring-256.png", "usr/share/icons/hicolor/256x256/apps/io.github.fakedevbagus.TopMonitoring.png", "644"],
+    ["README.md", "usr/share/doc/topmonitoring/README.md", "644"],
+    ["CHANGELOG.md", "usr/share/doc/topmonitoring/CHANGELOG.md", "644"],
+]
+
+[package.metadata.deb.variants.no-wayland]
+depends = "libgtk-4-1 (>= 4.12), libsensors5"

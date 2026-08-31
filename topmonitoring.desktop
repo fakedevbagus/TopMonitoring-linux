@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=TopMonitoring
+GenericName=System Monitor Topbar
+Comment=Fast and customizable Linux system-monitor topbar
+Exec=topmonitoring
+TryExec=topmonitoring
+Icon=io.github.fakedevbagus.TopMonitoring
+Terminal=false
+StartupNotify=false
+StartupWMClass=io.github.fakedevbagus.TopMonitoring
+Categories=System;Monitor;Utility;
+Keywords=monitor;cpu;gpu;sensor;ram;network;topbar;
+X-GNOME-UsesNotifications=true

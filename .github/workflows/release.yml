@@ -1,0 +1,52 @@
+name: Release package
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  deb:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package_name: wayland
+            cargo_deb_args: "--locked"
+          - package_name: no-wayland
+            cargo_deb_args: "--locked --no-default-features --variant no-wayland"
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libgtk4-layer-shell-dev libsensors-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo install cargo-deb --locked
+      - run: cargo deb ${{ matrix.cargo_deb_args }}
+      - name: Inspect package
+        run: |
+          package=$(find target/debian -maxdepth 1 -type f -name '*.deb' -print -quit)
+          test -n "$package"
+          dpkg-deb --info "$package"
+          dpkg-deb --contents "$package" | tee /tmp/package-contents.txt
+          test "$(dpkg-deb -f "$package" Package)" = topmonitoring
+          dpkg-deb -f "$package" Conflicts | grep -q topmonitoring-no-wayland
+          dpkg-deb -f "$package" Replaces | grep -q topmonitoring-no-wayland
+          if [[ "${{ matrix.package_name }}" == "no-wayland" ]]; then
+            ! dpkg-deb -f "$package" Depends | grep -q libgtk4-layer-shell
+          fi
+          grep -q 'usr/bin/topmonitoring' /tmp/package-contents.txt
+          grep -q 'io.github.fakedevbagus.TopMonitoring.desktop' /tmp/package-contents.txt
+          grep -q 'io.github.fakedevbagus.TopMonitoring.metainfo.xml' /tmp/package-contents.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: topmonitoring-${{ matrix.package_name }}-deb
+          path: target/debian/*.deb
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: target/debian/*.deb

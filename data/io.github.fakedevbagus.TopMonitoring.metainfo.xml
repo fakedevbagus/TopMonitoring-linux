@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.fakedevbagus.TopMonitoring</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>TopMonitoring</name>
+  <summary>Fast and customizable Linux system-monitor topbar</summary>
+  <description>
+    <p>TopMonitoring displays CPU, memory, temperature, GPU, disk, network,
+    battery, media, and hardware sensor data in a native GTK4 bar.</p>
+    <p>Version 2 adds asynchronous integrations, three layout zones,
+    per-module styling, safe custom commands, and a redesigned settings UI.</p>
+    <p>Version 3 alpha adds isolated providers, immutable snapshots,
+    diff-based rendering, health diagnostics, and adaptive priority overflow.</p>
+  </description>
+  <launchable type="desktop-id">io.github.fakedevbagus.TopMonitoring.desktop</launchable>
+  <url type="homepage">https://github.com/fakedevbagus/TopMonitoring-linux</url>
+  <url type="bugtracker">https://github.com/fakedevbagus/TopMonitoring-linux/issues</url>
+  <developer_name>TopMonitoring contributors</developer_name>
+  <provides>
+    <binary>topmonitoring</binary>
+  </provides>
+  <releases>
+    <release version="3.0.0-alpha.5" date="2026-08-16" type="development">
+      <description><p>Adds global Settings search, a filterable lazy module catalog, responsive navigation, keyboard flow, and an always-clickable More popover.</p></description>
+    </release>
+    <release version="3.0.0-alpha.4" date="2026-08-16" type="development">
+      <description><p>Adds deterministic normal, compact, tiny, and overflow layout tiers, a live More popover, priority survival, and width-aware disk output.</p></description>
+    </release>
+    <release version="3.0.0-alpha.3" date="2026-08-15" type="development">
+      <description><p>Moves native metric collection, process rows, and sensor scans off GTK; adds immutable core snapshots, freshness diagnostics, and diff-based widget reconciliation.</p></description>
+    </release>
+    <release version="3.0.0-alpha.2" date="2026-08-15" type="development">
+      <description><p>Separates fast and slow providers, adds freshness and error diagnostics, and centralizes metadata for all built-in modules.</p></description>
+    </release>
+    <release version="3.0.0-alpha.1" date="2026-08-14" type="development">
+      <description><p>Starts the approved v3 reliability phase with a priority action lane, desktop-aware Lock fallbacks, responsive disk text, module search, and signed X11 geometry validation.</p></description>
+    </release>
+    <release version="2.0.1" date="2026-08-14">
+      <description><p>Fixes legacy no-Wayland Debian package migration and release gates.</p></description>
+    </release>
+    <release version="2.0.0" date="2026-08-14">
+      <description><p>Major architecture, security, customization, and visual upgrade.</p></description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>
