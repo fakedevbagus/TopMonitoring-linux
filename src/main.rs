@@ -558,9 +558,21 @@ fn build_bar(app: &Application) {
     );
     window.set_child(Some(&overlay));
 
+    // V3-009: a transient toast layer for action feedback (pending → success /
+    // failure with backend name and error detail). Non-interactive label that
+    // auto-hides, so it never steals keyboard or pointer focus.
+    let action_toast = make_action_toast(&overlay);
+
     let active: Active = Rc::new(RefCell::new(Vec::new()));
     let adaptive_entries: AdaptiveEntries = Rc::new(RefCell::new(Vec::new()));
-    rebuild_bar_metrics(&zones, &active, &adaptive_entries, &cfg.borrow(), &runtime);
+    rebuild_bar_metrics(
+        &zones,
+        &active,
+        &adaptive_entries,
+        &cfg.borrow(),
+        &runtime,
+        &action_toast,
+    );
     let initial_layout_width = monitor_geometry(cfg.borrow().monitor)
         .map(|(_, _, width, _)| width)
         .unwrap_or(1_366);
@@ -752,6 +764,7 @@ fn build_bar(app: &Application) {
             core,
             last_core,
             last_external,
+            action_toast,
         ) = (
             cfg.clone(),
             zones.clone(),
@@ -763,6 +776,7 @@ fn build_bar(app: &Application) {
             core.clone(),
             last_core_snapshot.clone(),
             last_external_snapshot.clone(),
+            action_toast.clone(),
         );
         Rc::new(move || {
             let config = cfg.borrow();
@@ -771,7 +785,14 @@ fn build_bar(app: &Application) {
                 config.net_iface.clone(),
                 config.gpu_index as u32,
             ));
-            rebuild_bar_metrics(&zones, &active, &adaptive_entries, &config, &runtime);
+            rebuild_bar_metrics(
+                &zones,
+                &active,
+                &adaptive_entries,
+                &config,
+                &runtime,
+                &action_toast,
+            );
             apply_adaptive_layout(&adaptive_entries, &overflow_ui, layout_width.get(), &config);
             *last_core.borrow_mut() = None;
             *last_external.borrow_mut() = None;
@@ -1237,14 +1258,57 @@ fn add_module_classes(widget: &impl IsA<gtk::Widget>, id: &str) {
     widget.add_css_class(&format!("module-{}", css_class_id(id)));
 }
 
+/// V3-009 transient action feedback: a floating label over the bar that shows
+/// pending → success/error with backend name and error detail, then hides.
+/// `None` = pending, `Some(true)` = success, `Some(false)` = error.
+type ActionToast = Rc<dyn Fn(&str, Option<bool>)>;
+
+/// Creates a non-interactive toast label layered on top of the bar overlay.
+fn make_action_toast(overlay: &gtk::Overlay) -> ActionToast {
+    let label = Label::new(None);
+    label.add_css_class("action-toast");
+    label.set_halign(gtk::Align::Center);
+    label.set_valign(gtk::Align::Start);
+    label.set_wrap(true);
+    label.set_visible(false);
+    label.set_selectable(false);
+    overlay.add_overlay(&label);
+
+    let hide_source: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+    let label = label.clone();
+    Rc::new(move |message: &str, state: Option<bool>| {
+        label.set_text(message);
+        label.remove_css_class("action-toast-pending");
+        label.remove_css_class("action-toast-ok");
+        label.remove_css_class("action-toast-error");
+        match state {
+            None => label.add_css_class("action-toast-pending"),
+            Some(true) => label.add_css_class("action-toast-ok"),
+            Some(false) => label.add_css_class("action-toast-error"),
+        }
+        label.set_visible(true);
+        if let Some(source) = hide_source.borrow_mut().take() {
+            source.remove();
+        }
+        let hide = label.clone();
+        let source = glib::timeout_add_local(Duration::from_secs(3), move || {
+            hide.set_visible(false);
+            glib::ControlFlow::Break
+        });
+        *hide_source.borrow_mut() = Some(source);
+    })
+}
+
 fn connect_action_feedback(
     button: &Button,
     idle_label: &'static str,
     pending_label: &'static str,
     action: QuickAction,
     runtime: &RuntimeServices,
+    action_toast: &ActionToast,
 ) {
     let service = runtime.clone();
+    let toast = action_toast.clone();
     button.connect_clicked(move |button| {
         let request_id = service.quick_action(action);
         button.set_label(pending_label);
@@ -1252,9 +1316,11 @@ fn connect_action_feedback(
         button.remove_css_class("action-ok");
         button.remove_css_class("action-error");
         button.add_css_class("action-pending");
+        toast(&format!("{idle_label}… pending"), None);
 
         let button = button.clone();
         let service = service.clone();
+        let toast = toast.clone();
         glib::timeout_add_local(Duration::from_millis(100), move || {
             if button.root().is_none() {
                 return glib::ControlFlow::Break;
@@ -1282,6 +1348,23 @@ fn connect_action_feedback(
                 "{} · {} · {} ms",
                 feedback.message, feedback.provider, feedback.duration_ms
             )));
+            if feedback.success {
+                toast(
+                    &format!(
+                        "{idle_label} ✓ — {} · {} ms",
+                        feedback.provider, feedback.duration_ms
+                    ),
+                    Some(true),
+                );
+            } else {
+                toast(
+                    &format!(
+                        "{idle_label} ✗ — {} ({})",
+                        feedback.provider, feedback.message
+                    ),
+                    Some(false),
+                );
+            }
 
             let button = button.clone();
             glib::timeout_add_local(Duration::from_secs(3), move || {
@@ -1302,6 +1385,7 @@ fn rebuild_bar_metrics(
     adaptive: &AdaptiveEntries,
     cfg: &Config,
     runtime: &RuntimeServices,
+    action_toast: &ActionToast,
 ) {
     zones.clear();
     zones.set_spacing(cfg.module_gap);
@@ -1633,7 +1717,14 @@ fn rebuild_bar_metrics(
         let button = Button::with_label("Lock");
         button.set_tooltip_text(Some("Lock the current session"));
         add_module_classes(&button, "action-lock");
-        connect_action_feedback(&button, "Lock", "Lock…", QuickAction::Lock, runtime);
+        connect_action_feedback(
+            &button,
+            "Lock",
+            "Lock…",
+            QuickAction::Lock,
+            runtime,
+            action_toast,
+        );
         zones.end.append(&button);
     }
     if cfg.qa_screenshot {
@@ -1646,6 +1737,7 @@ fn rebuild_bar_metrics(
             "Capture…",
             QuickAction::Screenshot,
             runtime,
+            action_toast,
         );
         zones.end.append(&button);
     }
@@ -3842,6 +3934,47 @@ fn open_settings(cfg: &Rc<RefCell<Config>>, is_wayland: bool, context: &Settings
         });
         labeled_row(&quick, title, &toggle);
     }
+    // ----- Module layout editor (Step 0.5) -----
+    let layout_section = settings_section(
+        "Module layout",
+        "Enabled modules in bar order per zone. Arrows reorder within the same \
+         zone, and the zone picker moves a module between Start/Center/End. The \
+         tier preview runs the same allocator as the live bar at the simulated \
+         width: Normal → Compact → Tiny as space shrinks, then → Move to More.",
+    );
+    let preview_row = GtkBox::new(Orientation::Horizontal, 8);
+    let preview_caption = Label::new(Some("Simulated bar width (px)"));
+    preview_caption.set_xalign(0.0);
+    let width_spin = SpinButton::with_range(320.0, 7_680.0, 16.0);
+    width_spin.set_value(1_366.0);
+    let layout_list = GtkBox::new(Orientation::Vertical, 6);
+    layout_list.add_css_class("module-layout-list");
+    preview_row.append(&preview_caption);
+    preview_row.append(&width_spin);
+    layout_section.append(&preview_row);
+    layout_section.append(&layout_list);
+    let layout_note = Label::new(Some(
+        "Modules you see here follow the same priority rule as the bar: within \
+         each zone, equal-priority modules keep this manual order, while \
+         different priorities still win/lose width first. Disabled modules are \
+         hidden until enabled in the Modules catalog.",
+    ));
+    layout_note.add_css_class("settings-caption");
+    layout_note.set_wrap(true);
+    layout_note.set_xalign(0.0);
+    layout_section.append(&layout_note);
+    bars.append(&layout_section);
+
+    {
+        let cfg = cfg.clone();
+        let actions = actions.clone();
+        let list = layout_list.clone();
+        width_spin.connect_value_changed(move |spin| {
+            render_module_layout(&list, &cfg, &actions, spin.value() as i32);
+        });
+    }
+    render_module_layout(&layout_list, cfg, actions, width_spin.value() as i32);
+
     bars.append(&quick);
     stack.add_titled(&bars_scroll, Some("bars"), "Bars & layout");
 
@@ -4782,7 +4915,7 @@ fn settings_page_search_target(query: &str) -> Option<&'static str> {
         ),
         (
             "bars",
-            "bar bars layout placement screen edge monitor height offset density gap padding radius refresh interval adaptive overflow more quick action lock screenshot power",
+            "bar bars layout placement screen edge monitor height offset density gap padding radius refresh interval adaptive overflow more quick action lock screenshot power module order zone reorder up down tier preview simulate width",
         ),
         (
             "appearance",
@@ -5849,6 +5982,293 @@ fn zone_name(index: u32) -> &'static str {
     }
 }
 
+// ---------- Module layout editor (Step 0.5) ----------
+
+/// Identifies which configuration entry a layout row edits.
+#[derive(Clone, Debug, PartialEq)]
+enum LayoutRowTarget {
+    BuiltIn(usize),
+    Custom(usize),
+}
+
+/// One enabled module in bar order, described independently of the two config
+/// vecs so the layout editor can present a single visual list.
+#[derive(Clone, Debug, PartialEq)]
+struct LayoutRow {
+    target: LayoutRowTarget,
+    key: String,
+    display: String,
+    zone: String,
+    priority: i32,
+    compact: bool,
+    profile: WidthProfile,
+}
+
+/// Enabled modules exactly as the bar renders them: built-ins first (priority
+/// descending, config order as tie-break), then custom modules with the same
+/// rule. Disabled modules are intentionally excluded.
+fn collect_layout_rows(config: &Config) -> Vec<LayoutRow> {
+    let mut rows = Vec::new();
+    let mut metric_order: Vec<usize> = (0..config.metrics.len()).collect();
+    metric_order.sort_by(|left, right| {
+        config.metrics[*right]
+            .priority
+            .cmp(&config.metrics[*left].priority)
+            .then_with(|| left.cmp(right))
+    });
+    for index in metric_order {
+        let metric = &config.metrics[index];
+        if !metric.enabled {
+            continue;
+        }
+        let descriptor = module_descriptor(&metric.id);
+        let display = descriptor
+            .map(|descriptor| descriptor.display_name.to_string())
+            .unwrap_or_else(|| default_prefix(&metric.id).to_string());
+        let profile = descriptor
+            .map(|descriptor| descriptor.width_profile())
+            .unwrap_or_else(|| module_width_profile(&metric.id));
+        rows.push(LayoutRow {
+            target: LayoutRowTarget::BuiltIn(index),
+            key: format!("builtin:{}", metric.id),
+            display,
+            zone: metric.zone.clone(),
+            priority: metric.priority,
+            compact: metric.compact,
+            profile,
+        });
+    }
+    let mut custom_order: Vec<usize> = (0..config.custom_modules.len()).collect();
+    custom_order.sort_by(|left, right| {
+        config.custom_modules[*right]
+            .priority
+            .cmp(&config.custom_modules[*left].priority)
+            .then_with(|| left.cmp(right))
+    });
+    for index in custom_order {
+        let module = &config.custom_modules[index];
+        if !module.enabled {
+            continue;
+        }
+        rows.push(LayoutRow {
+            target: LayoutRowTarget::Custom(index),
+            key: format!("custom:{}", module.name),
+            display: module.name.clone(),
+            zone: module.zone.clone(),
+            priority: module.priority,
+            compact: module.compact,
+            profile: custom_width_profile(),
+        });
+    }
+    rows
+}
+
+/// Swap a module with its nearest same-zone neighbour in the config vec.
+/// Move buttons reorder only within one zone, so a module cannot leap across
+/// zones by accident. Returns `true` when a swap actually happened.
+fn layout_row_swap(config: &mut Config, target: &LayoutRowTarget, direction: i8) -> bool {
+    match target {
+        LayoutRowTarget::BuiltIn(from) => {
+            let zone = config.metrics[*from].zone.clone();
+            let mut cursor = *from as isize + direction as isize;
+            while (0..config.metrics.len() as isize).contains(&cursor) {
+                let index = cursor as usize;
+                if config.metrics[index].zone == zone {
+                    config.metrics.swap(*from, index);
+                    return true;
+                }
+                cursor += direction as isize;
+            }
+            false
+        }
+        LayoutRowTarget::Custom(from) => {
+            let zone = config.custom_modules[*from].zone.clone();
+            let mut cursor = *from as isize + direction as isize;
+            while (0..config.custom_modules.len() as isize).contains(&cursor) {
+                let index = cursor as usize;
+                if config.custom_modules[index].zone == zone {
+                    config.custom_modules.swap(*from, index);
+                    return true;
+                }
+                cursor += direction as isize;
+            }
+            false
+        }
+    }
+}
+
+/// Items fed to `allocate_layout`, matching the real bar's order and compact
+/// policy, so the tier preview always agrees with the live bar.
+fn layout_preview_items(config: &Config) -> Vec<LayoutItem> {
+    collect_layout_rows(config)
+        .into_iter()
+        .enumerate()
+        .map(|(order, row)| {
+            let profile = if config.adaptive_compact && row.compact {
+                row.profile
+            } else {
+                row.profile.fixed_normal()
+            };
+            LayoutItem {
+                key: row.key,
+                priority: row.priority,
+                order,
+                profile,
+            }
+        })
+        .collect()
+}
+
+fn zone_tier_summary(tier: LayoutTier, width_px: u16) -> String {
+    match tier {
+        LayoutTier::Normal => format!("Normal · {width_px}px"),
+        LayoutTier::Compact => format!("Compact · {width_px}px"),
+        LayoutTier::Tiny => format!("Tiny · {width_px}px"),
+        LayoutTier::Overflow => "→ More (hidden)".into(),
+    }
+}
+
+/// Rebuilds the module-layout list inside `list` from the live config.
+/// Handlers own their own widget clones and are therefore dropped together
+/// with their row, so repeated renders never accumulate signal handlers.
+fn render_module_layout(
+    list: &GtkBox,
+    cfg: &Rc<RefCell<Config>>,
+    actions: &ApplyActions,
+    window_width: i32,
+) {
+    while let Some(child) = list.first_child() {
+        list.remove(&child);
+    }
+    let config = cfg.borrow();
+    let rows = collect_layout_rows(&config);
+    let items = layout_preview_items(&config);
+    let budget = module_width_budget(window_width, &config);
+    let gap = config.module_gap.max(0) as u16;
+    let decisions = allocate_layout(&items, budget, gap);
+    let decision_for = |key: &str| {
+        decisions
+            .iter()
+            .find(|decision| decision.key == key)
+            .map(|decision| decision.tier)
+            .unwrap_or(LayoutTier::Overflow)
+    };
+    let width_for = |key: &str| {
+        decisions
+            .iter()
+            .find(|decision| decision.key == key)
+            .map(|decision| decision.width_px)
+            .unwrap_or(0)
+    };
+
+    for (zone_index, zone) in ["start", "center", "end"].iter().enumerate() {
+        let zone_rows: Vec<&LayoutRow> = rows.iter().filter(|row| row.zone == *zone).collect();
+        if zone_rows.is_empty() {
+            continue;
+        }
+        let header = Label::new(None);
+        header.set_markup(&format!(
+            "<b>{}</b>",
+            glib::markup_escape_text(["Start", "Center", "End"][zone_index])
+        ));
+        header.set_xalign(0.0);
+        list.append(&header);
+
+        for (position, row) in zone_rows.iter().enumerate() {
+            let tier = decision_for(&row.key);
+            let summary = zone_tier_summary(tier, width_for(&row.key));
+
+            let row_box = GtkBox::new(Orientation::Horizontal, 6);
+            row_box.add_css_class("module-layout-row");
+
+            let up = Button::with_label("↑");
+            up.set_tooltip_text(Some("Move up within this zone"));
+            let down = Button::with_label("↓");
+            down.set_tooltip_text(Some("Move down within this zone"));
+            // Comfortable 44x44 touch target for icon-only buttons.
+            up.set_size_request(44, 44);
+            down.set_size_request(44, 44);
+
+            let name = Label::new(Some(&row.display));
+            name.set_hexpand(true);
+            name.set_xalign(0.0);
+            name.set_ellipsize(gtk::pango::EllipsizeMode::End);
+
+            let tier_label = Label::new(Some(&summary));
+            tier_label.add_css_class(match tier {
+                LayoutTier::Overflow => "tier-overflow",
+                LayoutTier::Normal => "tier-normal",
+                LayoutTier::Compact | LayoutTier::Tiny => "tier-tight",
+            });
+
+            let zone_drop = DropDown::from_strings(&["Start", "Center", "End"]);
+            zone_drop.set_selected(match row.zone.as_str() {
+                "start" => 0,
+                "end" => 2,
+                _ => 1,
+            });
+
+            up.set_sensitive(position > 0);
+            down.set_sensitive(position + 1 < zone_rows.len());
+
+            let up_target = row.target.clone();
+            {
+                let cfg = cfg.clone();
+                let actions = actions.clone();
+                let list = list.clone();
+                up.connect_clicked(move |_| {
+                    if layout_row_swap(&mut cfg.borrow_mut(), &up_target, -1) {
+                        (actions.layout.clone())();
+                        render_module_layout(&list, &cfg, &actions, window_width);
+                    }
+                });
+            }
+            let down_target = row.target.clone();
+            {
+                let cfg = cfg.clone();
+                let actions = actions.clone();
+                let list = list.clone();
+                down.connect_clicked(move |_| {
+                    if layout_row_swap(&mut cfg.borrow_mut(), &down_target, 1) {
+                        (actions.layout.clone())();
+                        render_module_layout(&list, &cfg, &actions, window_width);
+                    }
+                });
+            }
+            let zone_target = row.target.clone();
+            {
+                let cfg = cfg.clone();
+                let actions = actions.clone();
+                let list = list.clone();
+                zone_drop.connect_selected_notify(move |widget| {
+                    let zone = zone_name(widget.selected()).to_string();
+                    match &zone_target {
+                        LayoutRowTarget::BuiltIn(index) => {
+                            if let Some(metric) = cfg.borrow_mut().metrics.get_mut(*index) {
+                                metric.zone = zone;
+                            }
+                        }
+                        LayoutRowTarget::Custom(index) => {
+                            if let Some(module) = cfg.borrow_mut().custom_modules.get_mut(*index) {
+                                module.zone = zone;
+                            }
+                        }
+                    }
+                    (actions.layout.clone())();
+                    render_module_layout(&list, &cfg, &actions, window_width);
+                });
+            }
+
+            row_box.append(&up);
+            row_box.append(&down);
+            row_box.append(&name);
+            row_box.append(&tier_label);
+            row_box.append(&zone_drop);
+            list.append(&row_box);
+        }
+    }
+}
+
 fn labeled_row(parent: &GtkBox, text: &str, widget: &impl IsA<gtk::Widget>) {
     let row = GtkBox::new(Orientation::Horizontal, 10);
     let label = Label::new(Some(text));
@@ -6036,5 +6456,160 @@ mod history_tests {
         assert_eq!(rows[0].name, "cpu-heavy");
         sort_process_rows(&mut rows, true);
         assert_eq!(rows[0].name, "memory-heavy");
+    }
+}
+#[cfg(test)]
+mod layout_editor_tests {
+    use super::*;
+
+    fn metric(id: &str, enabled: bool, zone: &str, priority: i32) -> config::MetricConf {
+        config::MetricConf {
+            id: id.into(),
+            label: String::new(),
+            enabled,
+            command: String::new(),
+            command_trusted: true,
+            warn: 0.0,
+            crit: 0.0,
+            zone: zone.into(),
+            priority,
+            compact: true,
+            format: String::new(),
+            fg_color: String::new(),
+            bg_color: String::new(),
+        }
+    }
+
+    fn custom(name: &str, enabled: bool, zone: &str, priority: i32) -> CustomModule {
+        CustomModule {
+            name: name.into(),
+            label: String::new(),
+            format: String::new(),
+            command: "echo hi".into(),
+            enabled,
+            trusted: true,
+            zone: zone.into(),
+            priority,
+            compact: true,
+            interval_ms: 1_000,
+            timeout_ms: 5_000,
+            max_output_bytes: 4_096,
+            tooltip: String::new(),
+            click_command: String::new(),
+            fg_color: String::new(),
+            bg_color: String::new(),
+        }
+    }
+
+    #[test]
+    fn collect_rows_orders_builtins_then_customs_by_priority() {
+        let config = Config {
+            metrics: vec![
+                metric("clock", true, "end", 50),
+                metric("memory", false, "center", 90),
+                metric("cpu", true, "start", 80),
+            ],
+            custom_modules: vec![
+                custom("low", true, "start", 10),
+                custom("high", true, "end", 60),
+            ],
+            ..Config::default()
+        };
+        let rows = collect_layout_rows(&config);
+        let keys: Vec<&str> = rows.iter().map(|row| row.key.as_str()).collect();
+        assert_eq!(
+            keys,
+            ["builtin:cpu", "builtin:clock", "custom:high", "custom:low"]
+        );
+        // Built-ins (sorted by priority) always precede customs.
+        assert!(keys[0].starts_with("builtin:") && keys[1].starts_with("builtin:"));
+        assert!(keys[2].starts_with("custom:") && keys[3].starts_with("custom:"));
+    }
+
+    #[test]
+    fn swap_only_reaches_same_zone_neighbour() {
+        let mut config = Config {
+            metrics: vec![
+                metric("cpu", true, "start", 50),
+                metric("ram", true, "start", 50),
+                metric("disk", true, "end", 50),
+            ],
+            ..Config::default()
+        };
+        // Move cpu down: it must leap over disk (different zone) to land on ram.
+        assert!(layout_row_swap(
+            &mut config,
+            &LayoutRowTarget::BuiltIn(0),
+            1
+        ));
+        assert_eq!(config.metrics[0].id, "ram");
+        assert_eq!(config.metrics[1].id, "cpu");
+        assert_eq!(config.metrics[2].id, "disk");
+        // Disk has no same-zone neighbour; swap must be a no-op.
+        assert!(!layout_row_swap(
+            &mut config,
+            &LayoutRowTarget::BuiltIn(2),
+            -1
+        ));
+        assert_eq!(config.metrics[2].id, "disk");
+    }
+
+    #[test]
+    fn swap_moves_custom_modules_within_zone() {
+        let mut config = Config {
+            custom_modules: vec![
+                custom("a", true, "center", 50),
+                custom("b", true, "center", 50),
+            ],
+            ..Config::default()
+        };
+        assert!(layout_row_swap(&mut config, &LayoutRowTarget::Custom(0), 1));
+        assert_eq!(config.custom_modules[0].name, "b");
+        assert_eq!(config.custom_modules[1].name, "a");
+    }
+
+    #[test]
+    fn preview_items_honor_adaptive_compact_off() {
+        let mut config = Config {
+            metrics: vec![metric("cpu", true, "start", 50)],
+            ..Config::default()
+        };
+        config.adaptive_compact = false;
+        let items = layout_preview_items(&config);
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].profile.normal_px, items[0].profile.tiny_px);
+        config.adaptive_compact = true;
+        let items = layout_preview_items(&config);
+        assert!(items[0].profile.tiny_px < items[0].profile.normal_px);
+    }
+
+    #[test]
+    fn tier_summary_labels_every_state() {
+        assert!(zone_tier_summary(LayoutTier::Normal, 104).contains("Normal"));
+        assert!(zone_tier_summary(LayoutTier::Compact, 78).contains("Compact"));
+        assert!(zone_tier_summary(LayoutTier::Tiny, 42).contains("Tiny"));
+        assert_eq!(
+            zone_tier_summary(LayoutTier::Overflow, 0),
+            "→ More (hidden)"
+        );
+    }
+
+    #[test]
+    fn preview_decisions_match_allocator_at_1366() {
+        let config = Config {
+            metrics: vec![
+                metric("cpu", true, "start", 90),
+                metric("memory", true, "start", 80),
+                metric("disk", true, "center", 10),
+            ],
+            ..Config::default()
+        };
+        let items = layout_preview_items(&config);
+        let budget = module_width_budget(1_366, &config);
+        let decisions = allocate_layout(&items, budget, config.module_gap.max(0) as u16);
+        assert_eq!(decisions.len(), 3);
+        assert!(decisions
+            .iter()
+            .all(|decision| decision.tier != LayoutTier::Overflow));
     }
 }

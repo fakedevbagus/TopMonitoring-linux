@@ -766,6 +766,17 @@ pub fn build_css(config: &Config, hue: Option<f64>) -> String {
          .module-catalog-title {{ font-weight: 700; }}\n\
          .module-catalog-state {{ padding: 2px 7px; border-radius: 999px; font-size: 11px; }}\n\
          .module-catalog-state.enabled {{ color: {accent}; background-color: alpha({accent}, 0.12); }}\n\
+         .settings-page button {{ min-height: 34px; }}\n\
+         .module-layout-row {{ padding: 4px 2px; border-bottom: 1px solid alpha(@theme_fg_color, 0.08); }}\n\
+         .module-layout-row button {{ min-width: 44px; min-height: 44px; }}\n\
+         .module-layout-row .tier-normal {{ color: {accent}; }}\n\
+         .module-layout-row .tier-tight {{ color: {warning}; }}\n\
+         .module-layout-row .tier-overflow {{ color: {critical}; }}\n\
+         .action-toast {{ margin-top: 6px; padding: 5px 12px; border-radius: 999px; font-weight: 700; box-shadow: 0 1px 4px rgba(0,0,0,0.35); }}\n\
+         .action-toast-pending {{ background-color: rgba(251,191,36,0.22); color: {warning}; }}\n\
+         .action-toast-ok {{ background-color: rgba(125,211,252,0.24); color: {accent}; }}\n\
+         .action-toast-error {{ background-color: rgba(251,113,133,0.26); color: {critical}; }}\n\
+         .settings-page button:focus-visible, .module-layout-row button:focus-visible, .settings-page drop-down:focus-visible {{ outline: 2px solid {accent}; outline-offset: 1px; }}\n\
          .module-catalog-state.disabled {{ opacity: 0.58; }}\n\
          .module-catalog-empty, .module-detail-empty {{ opacity: 0.68; }}\n\
          .module-editor {{ margin-bottom: 12px; }}\n\
