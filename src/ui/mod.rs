@@ -1,9 +1,11 @@
 //! Secondary windows (process manager, sensors, hwmon picker) extracted
 //! from `main.rs` as part of v4 Fase A.1.
 
+pub mod bar;
 pub mod hwmon;
 pub mod processes;
 pub mod sensors;
+pub mod settings;
 
 pub use hwmon::open_hwmon_picker;
 pub use processes::open_process_manager;

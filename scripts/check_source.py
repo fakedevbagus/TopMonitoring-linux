@@ -59,8 +59,17 @@ else:
 
 render_start = main_source.find("fn update_metric(")
 render_end = main_source.find("fn install_autostart(", render_start)
+# After Fase A.1 extraction, renderer lives in src/ui/bar.rs; accept either location
 if render_start < 0 or render_end < 0:
-    problems.append("could not locate snapshot-backed metric renderer")
+    bar_render_start = (root / "src/ui/bar.rs").read_text().find("fn update_metric(")
+    bar_render_end = (root / "src/ui/bar.rs").read_text().find("fn install_autostart(", bar_render_start)
+    if bar_render_start < 0 or bar_render_end < 0:
+        problems.append("could not locate snapshot-backed metric renderer")
+    else:
+        renderer = (root / "src/ui/bar.rs").read_text()[bar_render_start:bar_render_end]
+        for token in ["std::fs::", "System::", "Networks::", "Nvml::", '"/sys/', '"/proc']:
+            if token in renderer:
+                problems.append(f"provider I/O leaked into metric renderer: {token}")
 else:
     renderer = main_source[render_start:render_end]
     for token in ["std::fs::", "System::", "Networks::", "Nvml::", '"/sys/', '"/proc']:
@@ -79,10 +88,14 @@ layout_source = (root / "src/layout.rs").read_text()
 for token in ["WidthProfile", "LayoutTier", "allocate_layout"]:
     if token not in layout_source:
         problems.append(f"adaptive layout module is missing {token}")
+bar_source = (root / "src/ui/bar.rs").read_text()
+settings_mod_source = (root / "src/ui/settings/mod.rs").read_text()
+catalog_source = (root / "src/ui/settings/catalog.rs").read_text()
+combined_bar_settings = main_source + bar_source + settings_mod_source + catalog_source + (root / "src/ui/settings/search.rs").read_text() + (root / "src/ui/settings/layout.rs").read_text()
 for token in ["OverflowUi", "apply_adaptive_layout", "overflow-button", "overflow-empty"]:
-    if token not in main_source and token not in (root / "src/config.rs").read_text():
+    if token not in combined_bar_settings and token not in (root / "src/config.rs").read_text():
         problems.append(f"adaptive overflow UI is missing {token}")
-if "overflow.button.set_sensitive(false)" in main_source:
+if "overflow.button.set_sensitive(false)" in combined_bar_settings:
     problems.append("permanent More control must remain clickable when overflow is empty")
 for token in [
     "ModuleCatalogKey",
@@ -92,8 +105,13 @@ for token in [
     "EventControllerKey",
     "module-catalog-empty",
 ]:
-    if token not in main_source and token not in (root / "src/config.rs").read_text():
+    if token not in combined_bar_settings and token not in (root / "src/config.rs").read_text():
         problems.append(f"responsive Settings catalog is missing {token}")
+# Bar renderer now lives in src/ui/bar.rs after Fase A.1 extraction
+bar_renderer = (root / "src/ui/bar.rs").read_text()
+for token in ["std::fs::", "System::", "Networks::", "Nvml::", '"/sys/', '"/proc']:
+    if token in bar_renderer[max(0, bar_renderer.find("fn update_metric(")):bar_renderer.find("fn install_autostart(")]:
+        problems.append(f"provider I/O leaked into metric renderer (bar.rs): {token}")
 if problems:
     print("\n".join(problems), file=sys.stderr)
     raise SystemExit(1)
