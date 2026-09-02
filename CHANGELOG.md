@@ -3,55 +3,72 @@
 All notable changes to TopMonitoring are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [3.0.0] - 2026-09-01
 
 ### Added
-- Theme Studio controls on the Settings Appearance page: label font weight
-  (100–900), module border strength (0.0–0.6), and native GTK color pickers
-  next to every CSS color entry (Background, Accent, Module surface, Warning,
-  Critical). Entries remain the advanced fallback for rgba() strings with
-  alpha; picker and entry stay in sync.
-- Live bar preview: style changes re-render the real bar CSS immediately
-  before saving, plus a compact-density simulation toggle and an explicit
-  Reset (discard) / Save pair.
-- New config tokens `font_weight` and `border_strength` (serde defaults, both
-  clamped at validation) included in theme presets.
-
-### Fixed
-- A `RefCell already borrowed` panic when opening Settings: the five color
-  values were read as temporaries inside one array-literal statement, so the
-  shared borrow guards stayed alive while `picker.set_rgba()` synchronously
-  fired the notify handler's `borrow_mut()`. Values are now read into locals
-  first; the same hardening was applied to the weight/border controls.
-
-### Fixed
-- Settings no longer emits recurring `Gtk-CRITICAL` "minimum height ... for
-  width of 1048576 ... Expect overlapping widgets" warnings every refresh
-  tick. Both Settings stacks (page stack and module catalog stack) are now
-  non-homogeneous; the old behavior measured every page at two widths each
-  frame and mixed incompatible minimums. Verified 0 warnings across all five
-  pages (previously 26–69 per 14s window).
-
-### Added
-- Diagnostic environment hooks for headless verification:
-  `TOPMONITORING_AUTO_SETTINGS=1` auto-opens the Settings window after
-  startup and `TOPMONITORING_SETTINGS_PAGE=<name>` forces the initial page
-  (see `docs/TESTING.md` §12). Both are scheduled for removal before 3.0.0 GA.
-- Frame-clock effect engine (`src/effects.rs`, Step 0.2): five effect kinds
+- **Frame-clock effect engine** (`src/effects.rs`): five effect kinds
   (`orbit-glow`, `ember-orbit`, `aurora-sweep`, `critical-beacon`,
   `static-fallback`) drawn on a non-interactive GTK overlay layer above the
-  bar. All parameters are clamped, the phase advance respects the fps cap
-  (default 30), `reduce_motion` forces the static fallback, and a discharging
-  battery auto-disables animation. Disabled by default; new flat config keys
+  bar. The bar composes `GtkOverlay > root` so the effect layer paints above
+  modules without intercepting pointer input. All parameters are clamped, the
+  phase advance respects the fps cap (default 30), `reduce_motion` forces the
+  static fallback, and a discharging battery auto-disables animation. Disabled
+  by default; new flat config keys
   `effects_enabled/effects_kind/effects_fps_cap/effects_intensity/
   effects_trail/effects_thickness/effects_speed` with serde defaults keep v2
-  configs parsing. Eight new unit tests (52 total).
+  configs parsing.
+- **Theme Studio** on the Settings Appearance page: native GTK color pickers
+  beside every CSS color entry (Background, Accent, Module surface, Warning,
+  Critical), label font weight (100–900), module border strength (0.0–0.6),
+  live bar preview that re-renders real bar CSS before Save, a compact-density
+  simulation toggle, and explicit Undo/Reset/Save behavior.
+- **Layout Editor** on the Settings Bars page: drag-and-drop zone list
+  (start/center/end) with keyboard move controls, Normal/Compact/Tiny
+  per-module preview, action toast (pending → success/fail with backend name
+  + error detail), and contrast-safe module labels.
+- **Searchable Settings** with a compact module catalog: global search across
+  all pages, controls, built-ins, aliases, custom module names, labels, and
+  commands; Ctrl+F/Esc flow; Enabled/Disabled, Built-in/Custom, and category
+  filters; stable selection across filtering; lazy built-in/custom detail
+  editor; responsive navigation below 760px and catalog below 900px.
+- **More** overflow popover that remains clickable even when empty, with an
+  explanatory empty state, backed by a pure deterministic pixel-budget
+  allocator that supports normal, compact, tiny, and overflow tiers.
+- New config tokens `font_weight` and `border_strength` (serde defaults,
+  both clamped at validation) included in theme presets.
+- Five pure catalog/search regression tests, nine adaptive-layout tests,
+  eight effect-engine tests, plus prior coverage (59 unit tests total).
 
 ### Changed
 - The legacy per-second `animated_bg` hue rotation was removed
   (`load_from_string` inside the polling loop is now rejected by
   `scripts/check_source.py`). Effect visuals render exclusively through the
-  new engine; configs with `animated_bg = true` simply keep the static theme.
+  new engine; configs with `animated_bg = true` keep the static theme.
+- Both Settings stacks (page stack and module catalog stack) are now
+  non-homogeneous, eliminating recurring `Gtk-CRITICAL` "minimum height … for
+  width of 1048576 … Expect overlapping widgets" warnings every refresh tick.
+- Built-in and custom module editors share one catalog instead of eagerly
+  constructing every full card when Settings opens.
+- Module priority now controls survival under width pressure instead of only
+  sorting. Settings and overflow controls always keep a reserved width budget.
+- GTK reacts to actual allocation width changes without provider I/O,
+  rebuilds, or CSS re-parsing.
+
+### Fixed
+- `RefCell already borrowed` panic when opening Settings: color picker
+  `set_rgba()` synchronously fired the notify handler's `borrow_mut()`
+  against temporaries still borrowed from the same array-literal statement.
+  Values are now read into locals first; weight/border controls received the
+  same hardening.
+- Settings emitted 542 recurring Gtk-CRITICAL warnings during manual testing;
+  verified fixed (0 warnings across all five pages).
+- Permanent More control shows an explanatory empty state instead of appearing
+  broken when nothing overflows.
+
+### Removed
+- `animated_bg` CSS-recompile path (replaced by the frame-clock effect
+  engine). The config field is ignored for animation; only the static theme
+  is retained.
 
 ## [3.0.0-alpha.5] - 2026-08-16
 

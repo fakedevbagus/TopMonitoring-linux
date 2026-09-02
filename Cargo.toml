@@ -1,6 +1,6 @@
 [package]
 name = "topmonitoring"
-version = "3.0.0-alpha.5"
+version = "3.0.0"
 edition = "2021"
 authors = ["satriabagusanjaya <satriabagusanjaya@gmail.com>"]
 description = "Fast, customizable native Linux system-monitor topbar for Wayland and X11."

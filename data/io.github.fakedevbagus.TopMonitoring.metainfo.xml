@@ -21,6 +21,9 @@
     <binary>topmonitoring</binary>
   </provides>
   <releases>
+    <release version="3.0.0" date="2026-09-01" type="stable">
+      <description><p>Stable v3 release: frame-clock effect engine, Theme Studio color/typography/border controls with live preview, Layout Editor with per-zone modules and keyboard action, searchable filterable module catalog, fixed recurring Settings Gtk-CRITICAL warnings, and removed legacy CSS-recompile path.</p></description>
+    </release>
     <release version="3.0.0-alpha.5" date="2026-08-16" type="development">
       <description><p>Adds global Settings search, a filterable lazy module catalog, responsive navigation, keyboard flow, and an always-clickable More popover.</p></description>
     </release>
