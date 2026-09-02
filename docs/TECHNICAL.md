@@ -342,3 +342,29 @@ catalog `Paned` changes from horizontal to vertical. These observers only react
 to threshold changes and perform no provider work. The More popover is now
 permanently actionable; with zero hidden modules it displays an informational
 empty state.
+
+## 18. TopMonitoring 4 (v4 Fase A.1) module decomposition
+
+The single-file `main.rs` binary splits into a reusable library plus a thin
+binary so integration tests can later compile against the same code:
+
+```
+src/
+├── main.rs        binary glue: bar composition, GTK polling, settings UI
+├── lib.rs         pub mod exports (backend, command, config, docking, effects,
+│                  fsio, history, layout, model, runtime, ui)
+├── docking.rs     X11/Wayland geometry, struts, and monitor helpers
+├── fsio.rs        pure /sys /proc disk/hwmon helpers (GTK-free, panic-free)
+├── history.rs     CSV history path, summarization, async appends
+└── ui/
+    ├── mod.rs     shared window helpers + history dashboard
+    ├── processes.rs  snapshot-backed process manager
+    ├── sensors.rs    hardware sensors window + hwmon scanner
+    └── hwmon.rs      add-sensor hwmon picker
+```
+
+Rules enforced by `scripts/check_source.py`: the GTK polling callback and the
+metric renderer in `main.rs` contain no provider I/O (`sysinfo`, NVML, sysfs,
+procfs, CSS `load_from_string`); backend/fsio own all reads. `backend.rs`
+imports fsio helpers through `crate::fsio` (never through `super::`), keeping
+the dependency graph acyclic.

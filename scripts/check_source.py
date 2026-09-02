@@ -58,7 +58,7 @@ else:
             problems.append(f"provider I/O leaked into GTK polling callback: {token}")
 
 render_start = main_source.find("fn update_metric(")
-render_end = main_source.find("// ---------- sysfs / hwmon helpers", render_start)
+render_end = main_source.find("fn install_autostart(", render_start)
 if render_start < 0 or render_end < 0:
     problems.append("could not locate snapshot-backed metric renderer")
 else:

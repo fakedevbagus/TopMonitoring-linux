@@ -3,6 +3,24 @@
 All notable changes to TopMonitoring are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+- **v4 Fase A.1 module decomposition**: `main.rs` (5,818 LOC) is split into
+  focused modules available to both the library and the binary. `src/lib.rs`
+  now exposes `docking`, `fsio`, `history`, `effects`, and a `ui/` tree
+  (process manager, hardware sensors, hwmon picker, history dashboard).
+  Secondary windows (`Process Manager`, `Hardware Sensors`, `Add sensor from
+  hwmon`, `History dashboard`) now live in `src/ui/`; bar geometry/strut
+  helpers moved to `src/docking.rs`; pure sysfs/proc/disk helpers to
+  `src/fsio.rs`; CSV history logging/summarization to `src/history.rs`.
+  No user-visible behavior changed in this step — it is a pure refactor
+  (same build matrix, same tests, no config schema change).
+
+### Added
+- A reusable library crate (`topmonitoring`) alongside the binary, enabling
+  integration tests in `tests/` in later Fase A steps.
+
 ## [3.0.0] - 2026-09-01
 
 ### Added

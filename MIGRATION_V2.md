@@ -1,5 +1,13 @@
 # Migrating from TopMonitoring 1.x to 2.0
 
+## v4 note (2026-09-01)
+
+The v4 Fase A.1 refactor does **not** change the on-disk config schema. Schema
+version stays at v2 (alpha line) / v3 (3.0.0 GA), and no migration is invoked
+by the module split. The `v3.0.0` release already migrates v2 configs to
+schema v3 with an automatic backup; the steps below remain the authoritative
+migration path.
+
 ## Automatic migration
 
 TopMonitoring reads the existing

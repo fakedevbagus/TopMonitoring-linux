@@ -1,4 +1,4 @@
-use super::{
+use crate::fsio::{
     amd_active_clock, amd_card_device, amd_hwmon_read, disk_temps, format_disk_bar,
     format_disk_compact, format_disk_tiny, human_bytes, human_rate, human_uptime, read_amd_gpu,
     read_battery, read_cpu_power, read_disk_io_breakdown, read_fan_rpm, read_intel_gpu_clock,
@@ -511,19 +511,15 @@ fn build_snapshot(
         });
         let value = busiest
             .map(|(name, read, write)| {
-                format!(
-                    "{name} R{} W{}",
-                    human_rate(*read as u64),
-                    human_rate(*write as u64)
-                )
+                format!("{name} R{} W{}", human_rate(*read), human_rate(*write))
             })
             .unwrap_or_else(|| "n/a".into());
         let mut tooltip = String::from("Per-disk throughput:");
         for (name, read, write) in &disk_io {
             tooltip.push_str(&format!(
                 "\n{name}: R{} W{}",
-                human_rate(*read as u64),
-                human_rate(*write as u64)
+                human_rate(*read),
+                human_rate(*write)
             ));
         }
         metrics.insert(
@@ -621,7 +617,9 @@ fn build_snapshot(
     );
     metrics.insert(
         "procs".into(),
-        MetricSample::new(read_proc_count().to_string()),
+        read_proc_count().map_or_else(MetricSample::unavailable, |count| {
+            MetricSample::new(count.to_string())
+        }),
     );
     metrics.insert(
         "uptime".into(),
