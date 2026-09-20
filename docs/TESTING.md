@@ -16,20 +16,19 @@ cargo install cargo-deb --locked   # needed only when packaging
 
 A no-Wayland build does not require `libgtk4-layer-shell-dev`.
 
-## 2. Extract or update the source
+## 2. Clone or update the source
 
 ```bash
-unzip TopMonitoring-linux-v3.0.0-alpha.5-source-r16.zip
-cd TopMonitoring-linux-v3.0.0-alpha.5-r16
+git clone https://github.com/fakedevbagus/TopMonitoring-linux.git
+cd TopMonitoring-linux
+git switch major/v3
 cat SOURCE_CANDIDATE
 ```
 
-The marker must print `3.0.0-alpha.5-r16`. Do not extract this archive over an
-older alpha directory; the revision-specific top-level directory prevents stale
-scripts or source files from being reused accidentally.
-
-For the last stable source instead, use the 2.0.1 r7 archive documented in its
-release notes. Never mix files from the stable and alpha source trees.
+The current 3.0.0 source marker must print `3.0.0-r1`. When testing a later
+candidate, its marker must match the version and revision being evaluated.
+Never copy new files over an older source directory because stale files can
+invalidate the result.
 
 When testing a Git checkout, use a dedicated branch and make sure its working
 tree is clean before packaging.
@@ -308,10 +307,9 @@ so the reported minimum height mixed results from different pages and the
 1-second refresh timer re-emitted the warning continuously. The widgets are
 scrolled/filled, so a shared size is not required.
 
-Fix: set `hhomogeneous(false)`/`vhomogeneous(false)` on both stacks and
-document two diagnostic hooks: `TOPMONITORING_AUTO_SETTINGS=1` auto-opens
-Settings ~2s after launch, and `TOPMONITORING_SETTINGS_PAGE=<name>` forces
-the initial page for per-page bisection.
+Fix: set `hhomogeneous(false)`/`vhomogeneous(false)` on both stacks. Temporary
+diagnostic hooks auto-opened Settings and selected an initial page during
+per-page bisection; both hooks were removed before the 3.0.0 GA source.
 
 Verification (2026-09-01, release build, isolated config, 14s per page):
 `overview=0 bars=0 appearance=0 modules=0 tools=0` Gtk-CRITICAL warnings,
