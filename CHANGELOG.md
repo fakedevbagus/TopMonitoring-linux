@@ -5,6 +5,12 @@ All notable changes to TopMonitoring are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Disk I/O now reports deltas normalized by the real collection interval
+  instead of formatting cumulative `/proc/diskstats` counters as bytes per
+  second. Whole NVMe and MMC devices are retained while partitions are
+  identified through sysfs, and counter resets safely produce a zero delta.
+
 ### Changed
 - **v4 Fase A.1 module decomposition**: `main.rs` (5,818 LOC) is split into
   focused modules available to both the library and the binary. `src/lib.rs`

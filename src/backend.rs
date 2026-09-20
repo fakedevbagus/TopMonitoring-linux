@@ -1,8 +1,8 @@
 use crate::fsio::{
     amd_active_clock, amd_card_device, amd_hwmon_read, disk_temps, format_disk_bar,
-    format_disk_compact, format_disk_tiny, human_bytes, human_rate, human_uptime, read_amd_gpu,
-    read_battery, read_cpu_power, read_disk_io_breakdown, read_fan_rpm, read_intel_gpu_clock,
-    read_proc_count, read_vcore, DiskSummary,
+    disk_io_rates, format_disk_compact, format_disk_tiny, human_bytes, human_rate, human_uptime,
+    read_amd_gpu, read_battery, read_cpu_power, read_disk_io_counters, read_fan_rpm,
+    read_intel_gpu_clock, read_proc_count, read_vcore, DiskSummary,
 };
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::Nvml;
@@ -251,6 +251,7 @@ struct NativeCollector {
     disks: Disks,
     nvml: Option<Nvml>,
     last_collection: Instant,
+    disk_io_previous: BTreeMap<String, (u64, u64)>,
 }
 
 impl NativeCollector {
@@ -262,6 +263,7 @@ impl NativeCollector {
             disks: Disks::new_with_refreshed_list(),
             nvml: Nvml::init().ok(),
             last_collection: Instant::now(),
+            disk_io_previous: BTreeMap::new(),
         }
     }
 
@@ -279,6 +281,11 @@ impl NativeCollector {
         self.networks.refresh(true);
         self.disks.refresh(true);
 
+        let disk_io = disk_io_rates(
+            &mut self.disk_io_previous,
+            read_disk_io_counters(),
+            elapsed_secs,
+        );
         let mut snapshot = build_snapshot(
             &self.system,
             &self.components,
@@ -287,6 +294,7 @@ impl NativeCollector {
             &self.nvml,
             config,
             elapsed_secs,
+            &disk_io,
         );
         snapshot.generation = generation;
         snapshot.collected_at_epoch_secs = epoch_seconds();
@@ -341,6 +349,7 @@ fn build_snapshot(
     nvml: &Option<Nvml>,
     config: &CoreCollectionConfig,
     elapsed_secs: f64,
+    disk_io: &[(String, u64, u64)],
 ) -> CoreSnapshot {
     let mut metrics = BTreeMap::new();
 
@@ -500,7 +509,6 @@ fn build_snapshot(
         );
     }
 
-    let disk_io = read_disk_io_breakdown();
     if disk_io.is_empty() {
         metrics.insert("diskio".into(), MetricSample::unavailable());
     } else {
@@ -515,7 +523,7 @@ fn build_snapshot(
             })
             .unwrap_or_else(|| "n/a".into());
         let mut tooltip = String::from("Per-disk throughput:");
-        for (name, read, write) in &disk_io {
+        for (name, read, write) in disk_io {
             tooltip.push_str(&format!(
                 "\n{name}: R{} W{}",
                 human_rate(*read),
