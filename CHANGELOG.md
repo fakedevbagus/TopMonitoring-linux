@@ -6,6 +6,9 @@ All notable changes to TopMonitoring are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Ubuntu 24.04 CI and release jobs no longer request the unavailable
+  `libgtk4-layer-shell-dev` package. Wayland jobs build the pinned upstream
+  v1.0.4 revision, while X11-only jobs install only their required libraries.
 - Release-facing README and testing instructions now describe the 3.0.0 GA
   source instead of presenting the old alpha.5 candidate as current.
 - Removed the temporary Settings auto-open/page-selection diagnostic
