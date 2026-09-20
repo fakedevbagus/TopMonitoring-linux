@@ -1,4 +1,3 @@
-#![allow(unused, dead_code)]
 //! Settings search helpers.
 use crate::config::CustomModule;
 use crate::ui::bar::Active;
