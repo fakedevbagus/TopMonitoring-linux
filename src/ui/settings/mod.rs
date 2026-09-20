@@ -1,4 +1,3 @@
-#![allow(unused, dead_code)]
 //! Settings window — extracted from `main.rs` (Fase A.1).
 pub mod catalog;
 pub mod layout;
