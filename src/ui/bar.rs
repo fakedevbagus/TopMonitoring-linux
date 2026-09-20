@@ -3,8 +3,6 @@
 use crate::backend::{CoreCollector, CoreSnapshot, MetricLevel, MetricSample};
 use crate::command::{run_program_limited, run_shell_limited, CommandPolicy, CommandResult};
 use crate::config::{css_class_id, default_prefix, Config};
-#[cfg(feature = "wayland")]
-use crate::docking::configure_wayland;
 use crate::fsio::human_rate;
 use crate::layout::{
     allocate_layout, custom_width_profile, module_width_profile, LayoutItem, LayoutTier,
@@ -20,8 +18,6 @@ use gtk::{
     ApplicationWindow, Box as GtkBox, Button, DrawingArea, GestureClick, Label, Orientation, Scale,
     ScrolledWindow, Window,
 };
-#[cfg(feature = "wayland")]
-use gtk4_layer_shell::LayerShell;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
