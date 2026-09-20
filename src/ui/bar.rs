@@ -1,42 +1,25 @@
-#![allow(unused, dead_code)]
 #![allow(clippy::too_many_arguments)]
 //! Bar rendering — extracted from main.rs (Fase A.1).
-use crate::backend::{
-    CoreCollectionConfig, CoreCollector, CoreSnapshot, MetricLevel, MetricSample,
-};
+use crate::backend::{CoreCollector, CoreSnapshot, MetricLevel, MetricSample};
 use crate::command::{run_program_limited, run_shell_limited, CommandPolicy, CommandResult};
-use crate::config::{
-    build_css, build_custom_css, css_class_id, default_prefix, read_import, Config, CustomModule,
-    ThemePreset,
-};
-#[cfg(feature = "wayland")]
-use crate::docking::configure_wayland;
-use crate::docking::{configure_x11, monitor_geometry};
+use crate::config::{css_class_id, default_prefix, Config};
 use crate::fsio::human_rate;
-use crate::history::{append_history_values_async, history_log_path};
 use crate::layout::{
     allocate_layout, custom_width_profile, module_width_profile, LayoutItem, LayoutTier,
     WidthProfile,
 };
-use crate::model::{module_descriptor, module_registry, module_search_text};
-use crate::ui::{
-    make_range, open_history_dashboard, open_hwmon_picker, open_process_manager, open_sensors,
-};
+use crate::model::module_descriptor;
+use crate::ui::make_range;
+#[cfg(not(feature = "wayland"))]
 use gdk4_x11::prelude::*;
-use gtk::gio::prelude::FileExt;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
-    Application, ApplicationWindow, Box as GtkBox, Button, CenterBox, CssProvider, DrawingArea,
-    DropDown, Entry, EventControllerKey, EventControllerMotion, FileDialog, GestureClick, Label,
-    ListBox, ListBoxRow, Orientation, Paned, Scale, ScrolledWindow, SearchEntry, Separator,
-    SpinButton, Stack, StackSidebar, Switch, TextView, Window,
+    ApplicationWindow, Box as GtkBox, Button, DrawingArea, GestureClick, Label, Orientation, Scale,
+    ScrolledWindow, Window,
 };
-#[cfg(feature = "wayland")]
-use gtk4_layer_shell::LayerShell;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::time::{Duration, Instant};
@@ -1055,45 +1038,6 @@ pub(crate) fn set_formatted(label: &Label, prefix: &str, template: &str, value: 
             .replace("{label}", prefix)
             .replace("{value}", value),
     );
-}
-
-pub(crate) fn search_text_matches(haystack: &str, query: &str) -> bool {
-    let haystack = haystack.to_lowercase();
-    query
-        .split_whitespace()
-        .all(|term| haystack.contains(&term.to_lowercase()))
-}
-
-pub(crate) fn unique_custom_module_name(modules: &[CustomModule], base: &str) -> String {
-    let base = if base.trim().is_empty() {
-        "module".to_string()
-    } else {
-        base.trim().to_string()
-    };
-    if !modules.iter().any(|module| module.name == base) {
-        return base;
-    }
-    for suffix in 2..=999 {
-        let candidate = format!("{base} {suffix}");
-        if !modules.iter().any(|module| module.name == candidate) {
-            return candidate;
-        }
-    }
-    format!("{base} copy")
-}
-
-pub(crate) fn request_custom_module_run(active: &Active, module_name: &str) -> bool {
-    let slot_id = format!("custom:{module_name}");
-    for slot in active.borrow().iter() {
-        if slot.id == slot_id {
-            if let Some(force_run) = &slot.force_run {
-                force_run.set(true);
-                return true;
-            }
-            return false;
-        }
-    }
-    false
 }
 
 /// Sends a desktop notification for `key`, at most once every 60 seconds.
