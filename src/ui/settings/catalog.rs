@@ -1,4 +1,3 @@
-#![allow(unused, dead_code)]
 //! Module catalog UI.
 use crate::config::{default_prefix, Config, CustomModule};
 use crate::layout::LayoutTier;
