@@ -15,11 +15,15 @@ jobs:
       matrix:
         mode: [wayland, x11-only]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install native dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libgtk4-layer-shell-dev libsensors-dev
+          sudo apt-get install -y libgtk-4-dev libsensors-dev
+          if [[ "${{ matrix.mode }}" == "wayland" ]]; then
+            sudo apt-get install -y meson ninja-build libwayland-dev wayland-protocols
+            bash ./scripts/install-gtk4-layer-shell-ci.sh
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
@@ -50,9 +54,9 @@ jobs:
   repository-hygiene:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate scripts and repository hygiene
         run: |
-          bash -n install.sh uninstall.sh scripts/test-no-wayland.sh scripts/package-no-wayland.sh
+          bash -n install.sh uninstall.sh scripts/test-no-wayland.sh scripts/package-no-wayland.sh scripts/install-gtk4-layer-shell-ci.sh
           python3 scripts/check_source.py
           python3 scripts/check_release_docs.py

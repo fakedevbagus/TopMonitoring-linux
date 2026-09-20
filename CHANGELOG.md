@@ -6,6 +6,9 @@ All notable changes to TopMonitoring are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Ubuntu 24.04 CI and release jobs no longer request the unavailable
+  `libgtk4-layer-shell-dev` package. Wayland jobs build the pinned upstream
+  v1.0.4 revision, while X11-only jobs install only their required libraries.
 - Disk I/O now reports deltas normalized by the real collection interval
   instead of formatting cumulative `/proc/diskstats` counters as bytes per
   second. Whole NVMe and MMC devices are retained while partitions are

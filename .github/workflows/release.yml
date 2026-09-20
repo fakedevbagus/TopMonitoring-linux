@@ -20,10 +20,15 @@ jobs:
           - package_name: no-wayland
             cargo_deb_args: "--locked --no-default-features --variant no-wayland"
     steps:
-      - uses: actions/checkout@v4
-      - run: |
+      - uses: actions/checkout@v5
+      - name: Install native dependencies
+        run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libgtk4-layer-shell-dev libsensors-dev
+          sudo apt-get install -y libgtk-4-dev libsensors-dev
+          if [[ "${{ matrix.package_name }}" == "wayland" ]]; then
+            sudo apt-get install -y meson ninja-build libwayland-dev wayland-protocols
+            bash ./scripts/install-gtk4-layer-shell-ci.sh
+          fi
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo install cargo-deb --locked
       - run: cargo deb ${{ matrix.cargo_deb_args }}
