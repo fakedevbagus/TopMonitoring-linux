@@ -2,7 +2,7 @@
 //! Bar rendering — extracted from main.rs (Fase A.1).
 use crate::backend::{CoreCollector, CoreSnapshot, MetricLevel, MetricSample};
 use crate::command::{run_program_limited, run_shell_limited, CommandPolicy, CommandResult};
-use crate::config::{css_class_id, default_prefix, Config, CustomModule};
+use crate::config::{css_class_id, default_prefix, Config};
 #[cfg(feature = "wayland")]
 use crate::docking::configure_wayland;
 use crate::fsio::human_rate;
