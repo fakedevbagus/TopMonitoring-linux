@@ -19,6 +19,9 @@ All notable changes to TopMonitoring are documented here. The format follows
   environment hooks that were intended only for pre-GA warning bisection.
 
 ### Changed
+- Removed the broad `unused`/`dead_code` suppression from the application
+  orchestration module and deleted its stale imports. The app boundary now
+  relies on normal compiler and strict-Clippy diagnostics.
 - **v4 Fase A.2 lib/bin boundary**: application orchestration now lives in the
   library's `app` module and the binary is a three-line entry point. The
   previous binary-local `mod` tree no longer recompiles backend, runtime,
