@@ -292,9 +292,11 @@ impl NativeCollector {
             &self.networks,
             &self.disks,
             &self.nvml,
-            config,
-            elapsed_secs,
-            &disk_io,
+            SnapshotInputs {
+                config,
+                elapsed_secs,
+                disk_io: &disk_io,
+            },
         );
         snapshot.generation = generation;
         snapshot.collected_at_epoch_secs = epoch_seconds();
@@ -341,16 +343,25 @@ fn core_worker_loop(
     }
 }
 
+struct SnapshotInputs<'a> {
+    config: &'a CoreCollectionConfig,
+    elapsed_secs: f64,
+    disk_io: &'a [(String, u64, u64)],
+}
+
 fn build_snapshot(
     system: &System,
     components: &Components,
     networks: &Networks,
     disks: &Disks,
     nvml: &Option<Nvml>,
-    config: &CoreCollectionConfig,
-    elapsed_secs: f64,
-    disk_io: &[(String, u64, u64)],
+    inputs: SnapshotInputs<'_>,
 ) -> CoreSnapshot {
+    let SnapshotInputs {
+        config,
+        elapsed_secs,
+        disk_io,
+    } = inputs;
     let mut metrics = BTreeMap::new();
 
     let cpu = system.global_cpu_usage() as f64;
