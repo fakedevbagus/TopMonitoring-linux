@@ -31,6 +31,19 @@ for required in [
     if not path.exists() or path.stat().st_size == 0:
         problems.append(f"missing or empty required file: {required}")
 
+# Module-wide warning suppression hides stale code during refactors. Keep any
+# exceptional lint allowance narrow and attached to the affected item instead.
+for source_path in (root / "src").rglob("*.rs"):
+    for line_number, line in enumerate(source_path.read_text().splitlines(), start=1):
+        stripped = line.strip()
+        if stripped.startswith("#![allow(") and any(
+            lint in stripped for lint in ("unused", "dead_code")
+        ):
+            relative = source_path.relative_to(root)
+            problems.append(
+                f"module-wide warning suppression is forbidden: {relative}:{line_number}"
+            )
+
 main_source = (root / "src/main.rs").read_text()
 app_source = (root / "src/app.rs").read_text()
 orchestration_source = app_source if "fn build_bar(" in app_source else main_source
