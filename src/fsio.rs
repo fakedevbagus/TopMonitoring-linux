@@ -7,6 +7,7 @@
 //! or "n/a") instead of unwrapping.
 
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 /// Aggregated disk information for one mount point.
@@ -320,25 +321,80 @@ pub fn human_rate(bytes: u64) -> String {
 
 // ---- Disk I/O breakdown -----------------------------------------------------
 
-/// Read per-disk I/O statistics from `/proc/diskstats`.
-pub fn read_disk_io_breakdown() -> Vec<(String, u64, u64)> {
-    let mut results = Vec::new();
-    if let Ok(content) = std::fs::read_to_string("/proc/diskstats") {
-        for line in content.lines() {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DiskIoCounters {
+    pub name: String,
+    pub read_bytes: u64,
+    pub written_bytes: u64,
+}
+
+/// Parse cumulative Linux block-device counters.
+///
+/// `/proc/diskstats` always reports sectors in 512-byte units, including for
+/// devices whose physical or logical block size is larger.
+pub fn parse_diskstats(content: &str) -> Vec<DiskIoCounters> {
+    content
+        .lines()
+        .filter_map(|line| {
             let fields: Vec<&str> = line.split_whitespace().collect();
-            if fields.len() >= 14 {
-                let name = fields[2].to_string();
-                // Skip partition entries (they have digits in the name).
-                if name.chars().last().is_some_and(|c| c.is_ascii_digit()) {
-                    continue;
-                }
-                let sectors_read: u64 = fields[5].parse().unwrap_or(0);
-                let sectors_written: u64 = fields[9].parse().unwrap_or(0);
-                results.push((name, sectors_read * 512, sectors_written * 512));
+            if fields.len() < 14 {
+                return None;
             }
+            let sectors_read = fields[5].parse::<u64>().ok()?;
+            let sectors_written = fields[9].parse::<u64>().ok()?;
+            Some(DiskIoCounters {
+                name: fields[2].to_string(),
+                read_bytes: sectors_read.saturating_mul(512),
+                written_bytes: sectors_written.saturating_mul(512),
+            })
+        })
+        .collect()
+}
+
+fn is_partition(sys_block_root: &Path, name: &str) -> bool {
+    sys_block_root.join(name).join("partition").exists()
+}
+
+/// Read cumulative counters for whole block devices.
+///
+/// Partition detection uses sysfs instead of device-name suffixes so whole
+/// NVMe (`nvme0n1`) and MMC (`mmcblk0`) devices are not accidentally dropped.
+pub fn read_disk_io_counters() -> Vec<DiskIoCounters> {
+    let Ok(content) = std::fs::read_to_string("/proc/diskstats") else {
+        return Vec::new();
+    };
+    parse_diskstats(&content)
+        .into_iter()
+        .filter(|counter| !is_partition(Path::new("/sys/class/block"), &counter.name))
+        .collect()
+}
+
+/// Convert cumulative counters into per-second byte rates.
+///
+/// The first observation establishes a baseline. Counter resets and device
+/// replacement produce a zero delta rather than a huge wrapped rate.
+pub fn disk_io_rates(
+    previous: &mut BTreeMap<String, (u64, u64)>,
+    current: Vec<DiskIoCounters>,
+    elapsed_secs: f64,
+) -> Vec<(String, u64, u64)> {
+    let elapsed_secs = elapsed_secs.max(0.001);
+    let mut next = BTreeMap::new();
+    let mut rates = Vec::new();
+    for counter in current {
+        if let Some((previous_read, previous_written)) = previous.get(&counter.name) {
+            let read_delta = counter.read_bytes.saturating_sub(*previous_read);
+            let written_delta = counter.written_bytes.saturating_sub(*previous_written);
+            rates.push((
+                counter.name.clone(),
+                (read_delta as f64 / elapsed_secs) as u64,
+                (written_delta as f64 / elapsed_secs) as u64,
+            ));
         }
+        next.insert(counter.name, (counter.read_bytes, counter.written_bytes));
     }
-    results
+    *previous = next;
+    rates
 }
 
 // ---- Process count ----------------------------------------------------------
@@ -376,4 +432,80 @@ pub fn read_vcore() -> Option<f64> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod disk_io_tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    const DISKSTATS: &str = "\
+   8       0 sda 10 0 20 0 30 0 40 0 0 0 0 0 0 0 0 0 0
+ 259       0 nvme0n1 100 0 200 0 300 0 400 0 0 0 0 0 0 0 0 0 0
+ 179       0 mmcblk0 5 0 6 0 7 0 8 0 0 0 0 0 0 0 0 0 0
+ 259       1 nvme0n1p1 1 0 2 0 3 0 4 0 0 0 0 0 0 0 0 0 0
+";
+
+    #[test]
+    fn parser_keeps_whole_nvme_and_mmc_devices() {
+        let counters = parse_diskstats(DISKSTATS);
+        let names: Vec<&str> = counters
+            .iter()
+            .map(|counter| counter.name.as_str())
+            .collect();
+        assert_eq!(names, ["sda", "nvme0n1", "mmcblk0", "nvme0n1p1"]);
+        assert_eq!(counters[1].read_bytes, 200 * 512);
+        assert_eq!(counters[1].written_bytes, 400 * 512);
+    }
+
+    #[test]
+    fn sysfs_partition_marker_is_authoritative() {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "topmonitoring-diskstats-{}-{unique}",
+            std::process::id()
+        ));
+        let partition = root.join("nvme0n1p1");
+        std::fs::create_dir_all(&partition).expect("create fake sysfs device");
+        std::fs::write(partition.join("partition"), "1\n").expect("write partition marker");
+        std::fs::create_dir_all(root.join("nvme0n1")).expect("create whole device");
+
+        assert!(is_partition(&root, "nvme0n1p1"));
+        assert!(!is_partition(&root, "nvme0n1"));
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn rates_use_elapsed_time_and_reset_safely() {
+        let mut previous = BTreeMap::new();
+        let baseline = vec![DiskIoCounters {
+            name: "sda".into(),
+            read_bytes: 1_000,
+            written_bytes: 2_000,
+        }];
+        assert!(disk_io_rates(&mut previous, baseline, 1.0).is_empty());
+
+        let current = vec![DiskIoCounters {
+            name: "sda".into(),
+            read_bytes: 2_000,
+            written_bytes: 3_000,
+        }];
+        assert_eq!(
+            disk_io_rates(&mut previous, current, 2.0),
+            vec![("sda".into(), 500, 500)]
+        );
+
+        let reset = vec![DiskIoCounters {
+            name: "sda".into(),
+            read_bytes: 10,
+            written_bytes: 20,
+        }];
+        assert_eq!(
+            disk_io_rates(&mut previous, reset, 1.0),
+            vec![("sda".into(), 0, 0)]
+        );
+    }
 }
