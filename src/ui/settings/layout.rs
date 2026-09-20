@@ -1,4 +1,3 @@
-#![allow(unused, dead_code)]
 //! Layout editor extracted from main.rs.
 use crate::config::{default_prefix, Config};
 use crate::layout::{
