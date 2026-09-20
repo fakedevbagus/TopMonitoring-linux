@@ -1295,12 +1295,5 @@ pub(crate) fn open_settings(
         });
     }
 
-    // Diagnostic hook: TOPMONITORING_SETTINGS_PAGE=<name> forces the initial
-    // Settings page so per-page size warnings can be bisected automatically.
-    // Remove before 3.0.0 GA.
-    if let Some(page) = std::env::var_os("TOPMONITORING_SETTINGS_PAGE") {
-        stack.set_visible_child_name(&page.to_string_lossy());
-    }
-
     window.present();
 }

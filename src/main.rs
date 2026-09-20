@@ -521,17 +521,6 @@ fn build_bar(app: &Application) {
         let open = open.clone();
         settings_btn.connect_clicked(move |_| open());
     }
-    // Diagnostic hook: setting TOPMONITORING_AUTO_SETTINGS=1 auto-opens the
-    // Settings window ~2s after startup so Gtk-CRITICAL size warnings can be
-    // captured without manual clicking. Remove before 3.0.0 GA.
-    if std::env::var_os("TOPMONITORING_AUTO_SETTINGS").is_some() {
-        let open = open.clone();
-        glib::timeout_add_local(std::time::Duration::from_millis(2000), move || {
-            open();
-            glib::ControlFlow::Break
-        });
-    }
-
     {
         let gesture = GestureClick::new();
         gesture.set_button(3);

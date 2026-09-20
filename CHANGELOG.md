@@ -13,6 +13,10 @@ All notable changes to TopMonitoring are documented here. The format follows
   instead of formatting cumulative `/proc/diskstats` counters as bytes per
   second. Whole NVMe and MMC devices are retained while partitions are
   identified through sysfs, and counter resets safely produce a zero delta.
+- Release-facing README and testing instructions now describe the 3.0.0 GA
+  source instead of presenting the old alpha.5 candidate as current.
+- Removed the temporary Settings auto-open/page-selection diagnostic
+  environment hooks that were intended only for pre-GA warning bisection.
 
 ### Changed
 - **v4 Fase A.1 module decomposition**: `main.rs` (5,818 LOC) is split into

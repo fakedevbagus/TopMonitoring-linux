@@ -11,10 +11,11 @@ X11 instead of covering maximized windows.
 
 ![TopMonitoring screenshot](assets/Screenshot_2026-07-08_21-07-33.png)
 
-## TopMonitoring 3 alpha
+## TopMonitoring 3
 
-Version **3.0.0-alpha.5** completes the implementation side of approved Phase
-3. Alpha.1 through alpha.4 passed their terminal, smoke, and manual gates.
+Version **3.0.0** is the current source release. It combines isolated provider
+workers and immutable snapshots with adaptive layout, searchable Settings,
+Theme Studio, a frame-clock effect engine, and hardened custom commands.
 
 - **More is always clickable**, including an empty-state explanation when all
   enabled modules fit on the bar.
@@ -27,12 +28,11 @@ Version **3.0.0-alpha.5** completes the implementation side of approved Phase
 - Narrow Settings windows replace the sidebar with compact navigation and stack
   the catalog/editor panes vertically.
 
-This is a source-test alpha, not the final v3 `.deb`. Run formatting, all **44
-unit tests**, strict Clippy, the locked no-Wayland release build, smoke, and the
-Phase 3B manual matrix in `docs/TESTING.md`. Visual effects remain blocked until
-this complete Phase 3 gate passes.
+The 3.0.0 release gate passed all **59 unit tests** in both feature matrices,
+strict Clippy, locked release builds, repository checks, and the documented
+smoke/manual checks. See `docs/TESTING.md` before packaging a later update.
 
-## What is new in 2.0
+## Highlights
 
 - **Calm Telemetry visual system** with semantic accent, surface, warning, and
   critical colors; density controls; per-module foreground/background; and
@@ -92,10 +92,10 @@ Optional tools degrade gracefully:
 Download the release `.deb`, then:
 
 ```bash
-sudo apt install ./topmonitoring_2.0.1_*.deb
+sudo apt install ./topmonitoring_3.0.0_*.deb
 ```
 
-The 2.0.1 package supersedes the legacy `topmonitoring-no-wayland` package.
+The 3.0.0 package supersedes the legacy `topmonitoring-no-wayland` package.
 APT can remove that legacy package during the upgrade; user configuration under
 `~/.config/topmonitoring` is retained.
 
