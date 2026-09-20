@@ -17,8 +17,7 @@ use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
     Box as GtkBox, Button, DropDown, Entry, EventControllerKey, FileDialog, Label, Orientation,
-    ScrolledWindow, SearchEntry, SpinButton, Stack, StackSidebar, Switch,
-    TextView, Window,
+    ScrolledWindow, SearchEntry, SpinButton, Stack, StackSidebar, Switch, TextView, Window,
 };
 use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
