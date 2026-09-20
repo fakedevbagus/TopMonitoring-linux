@@ -383,11 +383,8 @@ pub fn disk_io_rates(
     let mut rates = Vec::new();
     for counter in current {
         if let Some((previous_read, previous_written)) = previous.get(&counter.name) {
-            let read_delta = counter.read_bytes.checked_sub(*previous_read).unwrap_or(0);
-            let written_delta = counter
-                .written_bytes
-                .checked_sub(*previous_written)
-                .unwrap_or(0);
+            let read_delta = counter.read_bytes.saturating_sub(*previous_read);
+            let written_delta = counter.written_bytes.saturating_sub(*previous_written);
             rates.push((
                 counter.name.clone(),
                 (read_delta as f64 / elapsed_secs) as u64,
