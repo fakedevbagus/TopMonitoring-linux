@@ -12,6 +12,7 @@ use crate::layout::{
 };
 use crate::model::module_descriptor;
 use crate::ui::make_range;
+#[cfg(not(feature = "wayland"))]
 use gdk4_x11::prelude::*;
 use gtk::glib;
 use gtk::prelude::*;
