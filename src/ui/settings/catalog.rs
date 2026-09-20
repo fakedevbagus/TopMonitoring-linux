@@ -1,6 +1,5 @@
 //! Module catalog UI.
 use crate::config::{default_prefix, Config, CustomModule};
-use crate::layout::LayoutTier;
 use crate::model::{module_descriptor, module_registry, module_search_text};
 use crate::ui::bar::{Active, ApplyActions, RefreshSlot};
 use crate::ui::open_hwmon_picker;
@@ -9,11 +8,10 @@ use crate::ui::settings::search::{
     request_custom_module_run, search_text_matches, settings_page_search_target,
     unique_custom_module_name,
 };
-use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
     Box as GtkBox, Button, DropDown, Entry, Label, ListBox, ListBoxRow, Orientation, Paned,
-    ScrolledWindow, SearchEntry, SpinButton, Stack, Switch, TextView, Window,
+    ScrolledWindow, SearchEntry, SpinButton, Stack, Switch,
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

@@ -3,36 +3,21 @@ pub mod catalog;
 pub mod layout;
 pub mod search;
 
-pub(crate) use catalog::{build_module_catalog_page, ModuleCatalogKey, ModuleCatalogRecord};
-pub(crate) use layout::{collect_layout_rows, render_module_layout};
-pub(crate) use search::search_text_matches;
+pub(crate) use catalog::build_module_catalog_page;
+pub(crate) use layout::render_module_layout;
 
-use crate::config::{
-    build_css, build_custom_css, css_class_id, read_import, Config, CustomModule, ThemePreset,
-};
+use crate::config::{read_import, Config, ThemePreset};
 use crate::history::history_log_path;
 use crate::runtime;
-use crate::runtime::RuntimeServices;
-use crate::ui::bar::{
-    add_module_classes, install_autostart, Active, ApplyActions, RefreshSlot, SettingsContext,
-};
-use crate::ui::settings::catalog::{
-    append_catalog_detail_empty, module_catalog_matches, module_catalog_record,
-    render_builtin_module_editor, render_custom_module_editor,
-};
-use crate::ui::settings::layout::{
-    labeled_row, settings_page, settings_section, zone_dropdown, zone_name,
-};
-use crate::ui::settings::search::{
-    search_text_matches as search_matches, settings_page_search_target,
-};
+use crate::ui::bar::{add_module_classes, install_autostart, SettingsContext};
+use crate::ui::settings::layout::{labeled_row, settings_page, settings_section};
 use crate::ui::{open_history_dashboard, open_process_manager, open_sensors};
 use gtk::gio::prelude::FileExt;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
-    Box as GtkBox, Button, DropDown, Entry, EventControllerKey, FileDialog, Label, ListBox,
-    Orientation, Paned, ScrolledWindow, SearchEntry, SpinButton, Stack, StackSidebar, Switch,
+    Box as GtkBox, Button, DropDown, Entry, EventControllerKey, FileDialog, Label, Orientation,
+    ScrolledWindow, SearchEntry, SpinButton, Stack, StackSidebar, Switch,
     TextView, Window,
 };
 use std::cell::{Cell, RefCell};
