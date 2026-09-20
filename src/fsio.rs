@@ -394,10 +394,7 @@ pub fn disk_io_rates(
                 (written_delta as f64 / elapsed_secs) as u64,
             ));
         }
-        next.insert(
-            counter.name,
-            (counter.read_bytes, counter.written_bytes),
-        );
+        next.insert(counter.name, (counter.read_bytes, counter.written_bytes));
     }
     *previous = next;
     rates
@@ -455,7 +452,10 @@ mod disk_io_tests {
     #[test]
     fn parser_keeps_whole_nvme_and_mmc_devices() {
         let counters = parse_diskstats(DISKSTATS);
-        let names: Vec<&str> = counters.iter().map(|counter| counter.name.as_str()).collect();
+        let names: Vec<&str> = counters
+            .iter()
+            .map(|counter| counter.name.as_str())
+            .collect();
         assert_eq!(names, ["sda", "nvme0n1", "mmcblk0", "nvme0n1p1"]);
         assert_eq!(counters[1].read_bytes, 200 * 512);
         assert_eq!(counters[1].written_bytes, 400 * 512);

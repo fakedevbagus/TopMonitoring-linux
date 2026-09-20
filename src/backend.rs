@@ -1,8 +1,8 @@
 use crate::fsio::{
-    amd_active_clock, amd_card_device, amd_hwmon_read, disk_temps, format_disk_bar,
-    disk_io_rates, format_disk_compact, format_disk_tiny, human_bytes, human_rate, human_uptime,
-    read_amd_gpu, read_battery, read_cpu_power, read_disk_io_counters, read_fan_rpm,
-    read_intel_gpu_clock, read_proc_count, read_vcore, DiskSummary,
+    amd_active_clock, amd_card_device, amd_hwmon_read, disk_io_rates, disk_temps, format_disk_bar,
+    format_disk_compact, format_disk_tiny, human_bytes, human_rate, human_uptime, read_amd_gpu,
+    read_battery, read_cpu_power, read_disk_io_counters, read_fan_rpm, read_intel_gpu_clock,
+    read_proc_count, read_vcore, DiskSummary,
 };
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::Nvml;
