@@ -5,6 +5,11 @@ All notable changes to TopMonitoring are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Ubuntu 24.04 CI and release jobs no longer request the unavailable
+  `libgtk4-layer-shell-dev` package. Wayland jobs build the pinned upstream
+  v1.0.4 revision, while X11-only jobs install only their required libraries.
+
 ### Changed
 - **v4 Fase A.1 module decomposition**: `main.rs` (5,818 LOC) is split into
   focused modules available to both the library and the binary. `src/lib.rs`
