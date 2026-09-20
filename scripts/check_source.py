@@ -22,7 +22,9 @@ for required in [
     "scripts/test-no-wayland.sh",
     "scripts/package-no-wayland.sh",
     "scripts/check_release_docs.py",
+    "src/app.rs",
     "src/backend.rs",
+    "src/lib.rs",
     "src/layout.rs",
 ]:
     path = root / required
@@ -30,15 +32,19 @@ for required in [
         problems.append(f"missing or empty required file: {required}")
 
 main_source = (root / "src/main.rs").read_text()
+app_source = (root / "src/app.rs").read_text()
+orchestration_source = app_source if "fn build_bar(" in app_source else main_source
 poll_marker = (
     "let source = glib::timeout_add_local(Duration::from_millis(step_ms), move || {"
 )
-poll_start = main_source.find(poll_marker)
-poll_end = main_source.find("*poll_source.borrow_mut() = Some(source);", poll_start)
+poll_start = orchestration_source.find(poll_marker)
+poll_end = orchestration_source.find(
+    "*poll_source.borrow_mut() = Some(source);", poll_start
+)
 if poll_start < 0 or poll_end < 0:
     problems.append("could not locate the GTK snapshot reconciliation callback")
 else:
-    poll_source = main_source[poll_start:poll_end]
+    poll_source = orchestration_source[poll_start:poll_end]
     for token in [
         "refresh_cpu_all",
         "refresh_memory",
@@ -57,8 +63,8 @@ else:
         if token in poll_source:
             problems.append(f"provider I/O leaked into GTK polling callback: {token}")
 
-render_start = main_source.find("fn update_metric(")
-render_end = main_source.find("fn install_autostart(", render_start)
+render_start = orchestration_source.find("fn update_metric(")
+render_end = orchestration_source.find("fn install_autostart(", render_start)
 # After Fase A.1 extraction, renderer lives in src/ui/bar.rs; accept either location
 if render_start < 0 or render_end < 0:
     bar_render_start = (root / "src/ui/bar.rs").read_text().find("fn update_metric(")
@@ -71,7 +77,7 @@ if render_start < 0 or render_end < 0:
             if token in renderer:
                 problems.append(f"provider I/O leaked into metric renderer: {token}")
 else:
-    renderer = main_source[render_start:render_end]
+    renderer = orchestration_source[render_start:render_end]
     for token in ["std::fs::", "System::", "Networks::", "Nvml::", '"/sys/', '"/proc']:
         if token in renderer:
             problems.append(f"provider I/O leaked into metric renderer: {token}")
@@ -91,7 +97,7 @@ for token in ["WidthProfile", "LayoutTier", "allocate_layout"]:
 bar_source = (root / "src/ui/bar.rs").read_text()
 settings_mod_source = (root / "src/ui/settings/mod.rs").read_text()
 catalog_source = (root / "src/ui/settings/catalog.rs").read_text()
-combined_bar_settings = main_source + bar_source + settings_mod_source + catalog_source + (root / "src/ui/settings/search.rs").read_text() + (root / "src/ui/settings/layout.rs").read_text()
+combined_bar_settings = orchestration_source + bar_source + settings_mod_source + catalog_source + (root / "src/ui/settings/search.rs").read_text() + (root / "src/ui/settings/layout.rs").read_text()
 for token in ["OverflowUi", "apply_adaptive_layout", "overflow-button", "overflow-empty"]:
     if token not in combined_bar_settings and token not in (root / "src/config.rs").read_text():
         problems.append(f"adaptive overflow UI is missing {token}")

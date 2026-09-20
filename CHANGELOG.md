@@ -19,6 +19,12 @@ All notable changes to TopMonitoring are documented here. The format follows
   environment hooks that were intended only for pre-GA warning bisection.
 
 ### Changed
+- **v4 Fase A.2 lib/bin boundary**: application orchestration now lives in the
+  library's `app` module and the binary is a three-line entry point. The
+  previous binary-local `mod` tree no longer recompiles backend, runtime,
+  config, and UI modules a second time; app-level regression tests now run
+  through the library target. Source-hygiene checks follow the orchestration
+  module while preserving the no-provider-I/O gate.
 - **v4 Fase A.1 module decomposition**: `main.rs` (5,818 LOC) is split into
   focused modules available to both the library and the binary. `src/lib.rs`
   now exposes `docking`, `fsio`, `history`, `effects`, and a `ui/` tree
