@@ -1,4 +1,3 @@
-#![allow(unused, dead_code)]
 #![allow(clippy::too_many_arguments)]
 //! Bar rendering — extracted from main.rs (Fase A.1).
 use crate::backend::{
