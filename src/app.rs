@@ -1,30 +1,19 @@
-use crate::{config, effects};
+use crate::effects;
 
 use crate::backend::{CoreCollectionConfig, CoreCollector, CoreSnapshot};
-use crate::config::{build_css, build_custom_css, Config, CustomModule};
+use crate::config::{build_css, build_custom_css, Config};
 #[cfg(feature = "wayland")]
 use crate::docking::configure_wayland;
 use crate::docking::{configure_x11, monitor_geometry};
 use crate::history::append_history_values_async;
-use crate::layout::{allocate_layout, LayoutTier};
-use crate::model::module_search_text;
 use crate::runtime::{ExternalSnapshot, RuntimeServices};
 use crate::ui::bar::{
-    apply_adaptive_layout, external_metric_changed, make_action_toast, module_width_budget,
-    rebuild_bar_metrics, update_slot, Active, AdaptiveEntries, ApplyActions, BarZones, OverflowUi,
-    SettingsContext, SlotWidget,
-};
-use crate::ui::settings::catalog::{
-    module_catalog_matches, module_catalog_record, CatalogKind, ModuleCatalogKey,
-    ModuleCatalogRecord,
-};
-use crate::ui::settings::layout::{
-    collect_layout_rows, layout_preview_items, layout_row_swap, zone_tier_summary, LayoutRowTarget,
+    apply_adaptive_layout, external_metric_changed, make_action_toast, rebuild_bar_metrics,
+    update_slot, Active, AdaptiveEntries, ApplyActions, BarZones, OverflowUi, SettingsContext,
+    SlotWidget,
 };
 use crate::ui::settings::open_settings;
-use crate::ui::settings::search::{search_text_matches, settings_page_search_target};
 use gdk4_x11::prelude::*;
-use gtk::gio::prelude::FileExt;
 use gtk::glib;
 use gtk::prelude::*;
 use gtk::{
@@ -511,10 +500,18 @@ fn build_bar(app: &Application) {
 
 #[cfg(test)]
 mod history_tests {
-    use super::*;
+    use crate::config::{Config, CustomModule};
     use crate::docking::calculate_x11_dock_geometry;
     use crate::fsio::{format_disk_bar, format_disk_compact, format_disk_tiny, DiskSummary};
     use crate::history::summarize_history;
+    use crate::model::module_search_text;
+    use crate::runtime::ExternalSnapshot;
+    use crate::ui::bar::{external_metric_changed, module_width_budget};
+    use crate::ui::settings::catalog::{
+        module_catalog_matches, module_catalog_record, CatalogKind, ModuleCatalogKey,
+        ModuleCatalogRecord,
+    };
+    use crate::ui::settings::search::{search_text_matches, settings_page_search_target};
 
     #[test]
     fn history_summary_ignores_invalid_rows_and_calculates_stats() {
@@ -672,7 +669,13 @@ mod history_tests {
 }
 #[cfg(test)]
 mod layout_editor_tests {
-    use super::*;
+    use crate::config::{self, Config, CustomModule};
+    use crate::layout::{allocate_layout, LayoutTier};
+    use crate::ui::bar::module_width_budget;
+    use crate::ui::settings::layout::{
+        collect_layout_rows, layout_preview_items, layout_row_swap, zone_tier_summary,
+        LayoutRowTarget,
+    };
 
     fn metric(id: &str, enabled: bool, zone: &str, priority: i32) -> config::MetricConf {
         config::MetricConf {
